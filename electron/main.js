@@ -1,5 +1,6 @@
 const { app, BrowserWindow, ipcMain, Notification, dialog } = require('electron');
 const path = require('path');
+const fs = require('fs');
 const { ensureStores, Stores } = require('../src/common/persist');
 const { callChat, proactiveCheck, summarizeConversation, testApi } = require('../src/common/openai');
 
@@ -7,6 +8,17 @@ let mainWindow;
 let proactiveTimer = null;
 
 function createWindow() {
+  const settings = Stores.settings.read() || {};
+  const vibEnabled = process.platform === 'darwin' && (settings?.ui?.vibrancy?.enabled ?? true);
+  const macVibrancy = vibEnabled ? {
+    vibrancy: 'under-window',
+    visualEffectState: 'active',
+    transparent: true,
+    backgroundColor: '#00000000',
+    titleBarStyle: 'hiddenInset',
+    titleBarOverlay: true,
+  } : {};
+
   mainWindow = new BrowserWindow({
     width: 1200,
     height: 800,
@@ -16,6 +28,7 @@ function createWindow() {
       nodeIntegration: false,
     },
     title: 'Companion Agent',
+    ...macVibrancy,
   });
 
   mainWindow.loadFile(path.join(__dirname, '../src/renderer/index.html'));
@@ -389,4 +402,98 @@ function appendLog(entry) {
   } catch (e) {
     console.error('appendLog failed', e);
   }
+}
+
+// Apply vibrancy dynamically (macOS)
+ipcMain.handle('ui:applyVibrancy', async (_evt, enabled) => {
+  try {
+    if (process.platform !== 'darwin') return { ok: true };
+    if (!mainWindow) return { ok: false, error: 'no-window' };
+    mainWindow.setVibrancy(enabled ? 'under-window' : null);
+    mainWindow.setBackgroundColor(enabled ? '#00000000' : '#000000');
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e?.message || String(e) };
+  }
+});
+
+// Export conversation as JSON or Markdown
+ipcMain.handle('conversations:export', async (_evt, { conversationId, format }) => {
+  try {
+    const store = Stores.conversations.read();
+    const conv = (store.conversations || []).find(c => c.id === conversationId);
+    if (!conv) return { ok: false, error: 'Conversation not found' };
+    const ext = String(format).toLowerCase() === 'md' || format === 'markdown' ? 'md' : 'json';
+    const defaultName = safeFilename(`${conv.title || '对话'}-${new Date().toISOString().slice(0,16).replace(/[:T]/g,'')}.${ext}`);
+    const res = await dialog.showSaveDialog(mainWindow, {
+      title: '导出对话',
+      defaultPath: defaultName,
+      filters: ext === 'md'
+        ? [{ name: 'Markdown', extensions: ['md'] }]
+        : [{ name: 'JSON', extensions: ['json'] }],
+    });
+    if (res.canceled || !res.filePath) return { ok: false, canceled: true };
+    const filePath = res.filePath;
+    const content = ext === 'md' ? conversationToMarkdown(conv) : JSON.stringify(conv, null, 2);
+    fs.writeFileSync(filePath, content, 'utf-8');
+    return { ok: true, path: filePath };
+  } catch (e) {
+    return { ok: false, error: e?.message || String(e) };
+  }
+});
+
+function safeFilename(name) {
+  return String(name || '')
+    .replace(/[\\/:*?"<>|\n\r]+/g, '_')
+    .slice(0, 120);
+}
+
+function conversationToMarkdown(conv) {
+  const lines = [];
+  lines.push(`# ${conv.title || '对话'}`);
+  if (conv.createdAt) lines.push(`创建时间: ${new Date(conv.createdAt).toLocaleString()}`);
+  lines.push('');
+  for (const m of (conv.messages || [])) {
+    const role = m.role === 'user' ? '用户' : (m.role === 'assistant' ? '助手' : (m.role || '系统'));
+    const ts = m.timestamp ? new Date(m.timestamp).toLocaleString() : '';
+    lines.push(`## ${role} · ${ts}`.trim());
+    lines.push('');
+    lines.push(m.content || '');
+    lines.push('');
+  }
+  return lines.join('\n');
+}
+
+ipcMain.handle('conversations:exportAll', async (_evt, { format }) => {
+  try {
+    const store = Stores.conversations.read();
+    const list = store.conversations || [];
+    const ext = String(format).toLowerCase() === 'md' || format === 'markdown' ? 'md' : 'json';
+    const defaultName = `所有对话-${new Date().toISOString().slice(0,16).replace(/[:T]/g,'')}.${ext}`;
+    const res = await dialog.showSaveDialog(mainWindow, {
+      title: '导出全部对话',
+      defaultPath: defaultName,
+      filters: ext === 'md'
+        ? [{ name: 'Markdown', extensions: ['md'] }]
+        : [{ name: 'JSON', extensions: ['json'] }],
+    });
+    if (res.canceled || !res.filePath) return { ok: false, canceled: true };
+    const filePath = res.filePath;
+    const content = ext === 'md' ? conversationsToMarkdown(list) : JSON.stringify({ conversations: list }, null, 2);
+    fs.writeFileSync(filePath, content, 'utf-8');
+    return { ok: true, path: filePath };
+  } catch (e) {
+    return { ok: false, error: e?.message || String(e) };
+  }
+});
+
+function conversationsToMarkdown(convs) {
+  const parts = [];
+  parts.push(`# 所有对话`);
+  parts.push('');
+  for (const conv of convs) {
+    parts.push(conversationToMarkdown(conv));
+    parts.push('');
+  }
+  return parts.join('\n');
 }

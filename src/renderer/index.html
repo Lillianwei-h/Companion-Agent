@@ -10,7 +10,7 @@
     <div id="app">
       <aside class="sidebar">
         <div class="sidebar-header">
-          <div class="app-title">穆</div>
+          <div class="app-title"></div>
           <button id="btn-new-chat" class="primary">新建对话</button>
         </div>
         <div id="conversations" class="conversation-list"></div>
@@ -28,6 +28,10 @@
           <div class="chat-actions">
             <button id="btn-toggle-sidebar">隐藏会话列表</button>
             <button id="btn-summarize">总结加入记忆库</button>
+            <button id="btn-export-json">导出JSON</button>
+            <button id="btn-export-md">导出Markdown</button>
+            <button id="btn-export-all-json">导出全部(JSON)</button>
+            <button id="btn-export-all-md">导出全部(MD)</button>
             <!-- <button id="btn-delete-current" class="danger">删除当前对话</button> -->
           </div>
         </div>
@@ -69,9 +73,9 @@
             </div>
             <div>
               <h3>通知与主动联系</h3>
-              <label><input id="proactive-enabled" type="checkbox" /> 启用每隔固定时间判断</label>
+              <label class="inline">启用主动联系 <input id="proactive-enabled" type="checkbox" /></label>
               <label>间隔（分钟） <input id="proactive-interval" type="number" min="1" max="240" /></label>
-              <label><input id="notif-proactive" type="checkbox" /> 新消息显示系统通知</label>
+              <label class="inline">新消息显示系统通知 <input id="notif-proactive" type="checkbox" /></label>
               <div style="margin-top:8px; display:flex; gap:8px; align-items:center; flex-wrap: wrap;">
                 <button id="btn-test-notif">发送测试通知</button>
                 <button id="btn-proactive-once">立即检查一次</button>
@@ -90,6 +94,11 @@
                   <button id="pick-avatar-agent">选择图片</button>
                 </div>
               </div>
+              <h3>外观</h3>
+              <label class="inline">启用毛玻璃（macOS） <input id="vibrancy-enabled" type="checkbox" /></label>
+              <label>半透明强度 <input id="vibrancy-strength" type="range" min="0" max="100" step="5" /></label>
+              <label>侧栏半透明强度 <input id="vibrancy-sidebar-strength" type="range" min="0" max="100" step="5" /></label>
+              <div class="muted">提示：较高强度更透明。轻度可读性更强。</div>
             </div>
           </section>
           <section>
@@ -99,7 +108,7 @@
               <button id="btn-logs-clear" class="danger">清空日志</button>
               <span class="muted">显示最近 200 条记录（包含 SKIP）</span>
             </div>
-            <div id="logs-list" style="max-height: 240px; overflow:auto; background:#0c0e12; border:1px solid var(--border); border-radius:8px; padding:8px; white-space:pre-wrap; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size:12px;"></div>
+            <div id="logs-list" style="max-height: 240px; overflow:auto; background: var(--panel); border:1px solid var(--border); border-radius:8px; padding:8px; white-space:pre-wrap; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size:12px; backdrop-filter: blur(6px) saturate(120%); -webkit-backdrop-filter: blur(6px) saturate(120%);"></div>
           </section>
         </div>
         <div class="modal-footer">

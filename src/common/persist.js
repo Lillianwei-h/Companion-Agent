@@ -58,6 +58,11 @@ function defaultSettings() {
       currentConversationId: '',
       listOrderMode: 'auto', // 'auto' | 'manual'
       conversationOrder: [],
+      vibrancy: {
+        enabled: true,
+        strength: 0.65, // 0..1
+        sidebarStrength: 0.35, // 0..1 (独立控制侧栏透明度)
+      },
     },
   };
 }
@@ -88,7 +93,12 @@ const Stores = {
     write: (data) => writeJson('settings.json', data),
   },
   conversations: {
-    read: () => readJson('conversations.json'),
+    read: () => {
+      const data = readJson('conversations.json') || { conversations: [] };
+      const { changed, result } = sanitizeConversations(data);
+      if (changed) writeJson('conversations.json', result);
+      return result;
+    },
     write: (data) => writeJson('conversations.json', data),
   },
   memory: {
@@ -102,3 +112,39 @@ const Stores = {
 };
 
 module.exports = { ensureStores, Stores };
+
+function sanitizeConversations(input) {
+  try {
+    const out = input && typeof input === 'object' ? JSON.parse(JSON.stringify(input)) : { conversations: [] };
+    let changed = false;
+    const list = Array.isArray(out.conversations) ? out.conversations : [];
+    for (const conv of list) {
+      if (!conv.createdAt) {
+        conv.createdAt = new Date().toISOString();
+        changed = true;
+      }
+      if (!Array.isArray(conv.messages)) {
+        conv.messages = [];
+        changed = true;
+      }
+      let lastTs = Date.parse(conv.createdAt) || Date.now();
+      for (let i = 0; i < conv.messages.length; i++) {
+        const m = conv.messages[i] || {};
+        if (!m.id) {
+          m.id = `msg_${conv.id || 'conv'}_${i}_${Date.now()}`;
+          changed = true;
+        }
+        if (!m.timestamp) {
+          lastTs += 1;
+          m.timestamp = new Date(lastTs).toISOString();
+          changed = true;
+        }
+        conv.messages[i] = m;
+      }
+    }
+    return { changed, result: { conversations: list } };
+  } catch (e) {
+    console.error('sanitizeConversations failed', e);
+    return { changed: false, result: input || { conversations: [] } };
+  }
+}

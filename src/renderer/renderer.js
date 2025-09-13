@@ -17,6 +17,10 @@ const elChatTitle = document.getElementById('chat-title');
 const elNewChat = document.getElementById('btn-new-chat');
 const elSummarize = document.getElementById('btn-summarize');
 const elToggleSidebar = document.getElementById('btn-toggle-sidebar');
+const elExportJson = document.getElementById('btn-export-json');
+const elExportMd = document.getElementById('btn-export-md');
+const elExportAllJson = document.getElementById('btn-export-all-json');
+const elExportAllMd = document.getElementById('btn-export-all-md');
 const elDeleteCurrent = document.getElementById('btn-delete-current');
 
 const elSettingsModal = document.getElementById('settings-modal');
@@ -46,6 +50,9 @@ const elApiSummaryHistory = document.getElementById('api-summary-history');
 const elProactiveEnabled = document.getElementById('proactive-enabled');
 const elProactiveInterval = document.getElementById('proactive-interval');
 const elNotifProactive = document.getElementById('notif-proactive');
+const elVibrancyEnabled = document.getElementById('vibrancy-enabled');
+const elVibrancyStrength = document.getElementById('vibrancy-strength');
+const elVibrancySidebarStrength = document.getElementById('vibrancy-sidebar-strength');
 const elAvatarUserPreview = document.getElementById('avatar-user-preview');
 const elAvatarAgentPreview = document.getElementById('avatar-agent-preview');
 const elPickAvatarUser = document.getElementById('pick-avatar-user');
@@ -96,6 +103,13 @@ async function init() {
     elChat.style.setProperty('--composer-height', '140px');
   }
   setupChatResizer();
+  // Apply initial translucency from settings
+  applyTranslucencyFromSettings();
+  // Reapply when system theme changes
+  try {
+    const mm = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)');
+    mm && mm.addEventListener('change', () => applyTranslucencyFromSettings());
+  } catch {}
 
   window.api.onConversationsUpdated(async () => {
     state.conversationsStore = await window.api.listConversations();
@@ -442,6 +456,10 @@ function fillSettingsForm() {
   elProactiveEnabled.checked = !!s.proactive?.enabled;
   elProactiveInterval.value = s.proactive?.intervalMinutes ?? 10;
   elNotifProactive.checked = !!s.notifications?.onProactive;
+  const vDefault = navigator.userAgent.includes('Mac') ? true : false;
+  elVibrancyEnabled.checked = s.ui?.vibrancy?.enabled ?? vDefault;
+  elVibrancyStrength.value = Math.round((s.ui?.vibrancy?.strength ?? 0.65) * 100);
+  elVibrancySidebarStrength.value = Math.round((s.ui?.vibrancy?.sidebarStrength ?? 0.35) * 100);
   if (s.avatars?.user) elAvatarUserPreview.src = s.avatars.user; else elAvatarUserPreview.removeAttribute('src');
   if (s.avatars?.agent) elAvatarAgentPreview.src = s.avatars.agent; else elAvatarAgentPreview.removeAttribute('src');
 }
@@ -466,12 +484,23 @@ function buildSettingsPatchFromForm() {
       onProactive: elNotifProactive.checked,
     },
     avatars: state.settings.avatars || {},
+    ui: {
+      ...(state.settings.ui || {}),
+      vibrancy: {
+        enabled: !!elVibrancyEnabled.checked,
+        strength: Math.max(0, Math.min(1, Number(elVibrancyStrength.value) / 100 || 0.65)),
+        sidebarStrength: Math.max(0, Math.min(1, Number(elVibrancySidebarStrength.value) / 100 || 0.35)),
+      },
+    },
   };
 }
 
 async function saveSettings() {
   const patch = buildSettingsPatchFromForm();
   state.settings = await window.api.updateSettings(patch);
+  // Apply vibrancy without restart (macOS)
+  try { await window.api.applyVibrancy(!!state.settings.ui?.vibrancy?.enabled); } catch {}
+  applyTranslucencyFromSettings();
   hide(elSettingsModal);
 }
 
@@ -592,11 +621,15 @@ elInput.addEventListener('keydown', (e) => {
 });
 elNewChat.addEventListener('click', onNewChat);
 elSummarize.addEventListener('click', onSummarize);
-  elToggleSidebar?.addEventListener('click', () => {
-    const app = document.getElementById('app');
-    app.classList.toggle('sidebar-hidden');
-    elToggleSidebar.textContent = app.classList.contains('sidebar-hidden') ? '显示会话列表' : '隐藏会话列表';
-  });
+elToggleSidebar?.addEventListener('click', () => {
+  const app = document.getElementById('app');
+  app.classList.toggle('sidebar-hidden');
+  elToggleSidebar.textContent = app.classList.contains('sidebar-hidden') ? '显示会话列表' : '隐藏会话列表';
+});
+elExportJson?.addEventListener('click', async () => { await onExport('json'); });
+elExportMd?.addEventListener('click', async () => { await onExport('md'); });
+elExportAllJson?.addEventListener('click', async () => { await onExportAll('json'); });
+elExportAllMd?.addEventListener('click', async () => { await onExportAll('md'); });
 elDeleteCurrent?.addEventListener('click', async () => {
   if (!state.currentId) return;
   await deleteConversationById(state.currentId);
@@ -651,6 +684,21 @@ elMemDelete.addEventListener('click', memDelete);
 elLogsRefresh?.addEventListener('click', refreshLogs);
 elLogsClear?.addEventListener('click', async () => { await window.api.clearLogs(); await refreshLogs(); });
 
+// Live preview translucency while sliding
+elVibrancyStrength?.addEventListener('input', () => {
+  const strength = Math.max(0, Math.min(1, Number(elVibrancyStrength.value) / 100 || 0.65));
+  const side = Math.max(0, Math.min(1, Number(elVibrancySidebarStrength.value) / 100 || 0.35));
+  applyTranslucency(strength, side);
+});
+elVibrancyEnabled?.addEventListener('change', async () => {
+  try { await window.api.applyVibrancy(!!elVibrancyEnabled.checked); } catch {}
+});
+elVibrancySidebarStrength?.addEventListener('input', () => {
+  const strength = Math.max(0, Math.min(1, Number(elVibrancyStrength.value) / 100 || 0.65));
+  const side = Math.max(0, Math.min(1, Number(elVibrancySidebarStrength.value) / 100 || 0.35));
+  applyTranslucency(strength, side);
+});
+
 init();
 
 function setupChatResizer() {
@@ -680,6 +728,33 @@ function setupChatResizer() {
     window.addEventListener('mousemove', onMove);
     window.addEventListener('mouseup', onUp);
   });
+}
+
+function applyTranslucencyFromSettings() {
+  const s = state.settings || {};
+  const strength = Math.max(0, Math.min(1, Number(s.ui?.vibrancy?.strength ?? 0.65)));
+  const side = Math.max(0, Math.min(1, Number(s.ui?.vibrancy?.sidebarStrength ?? 0.35)));
+  applyTranslucency(strength, side);
+}
+
+function applyTranslucency(strength, sidebarStrength) {
+  const dark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+  const root = document.documentElement;
+  const rgb = dark
+    ? { bg: '15,17,21', panel: '21,24,34', panel2: '27,31,43', field: '255,255,255' }
+    : { bg: '248,250,253', panel: '255,255,255', panel2: '246,248,251', field: '255,255,255' };
+  const a = (min, max) => (min + (max - min) * strength).toFixed(2);
+  const alpha = dark
+    ? { bg: a(0.45, 0.80), panel: a(0.50, 0.85), panel2: a(0.40, 0.75), field: a(0.06, 0.22) }
+    : { bg: a(0.50, 0.90), panel: a(0.60, 0.95), panel2: a(0.55, 0.85), field: a(0.85, 0.95) };
+  root.style.setProperty('--bg', `rgba(${rgb.bg}, ${alpha.bg})`);
+  root.style.setProperty('--panel', `rgba(${rgb.panel}, ${alpha.panel})`);
+  root.style.setProperty('--panel-2', `rgba(${rgb.panel2}, ${alpha.panel2})`);
+  root.style.setProperty('--field-bg', `rgba(${rgb.field}, ${alpha.field})`);
+  // Sidebar transparency independent control
+  const sMap = (min, max) => (min + (max - min) * (sidebarStrength ?? 0.35)).toFixed(2);
+  const sAlpha = dark ? sMap(0.30, 0.60) : sMap(0.15, 0.50);
+  root.style.setProperty('--sidebar-panel', `rgba(${rgb.panel}, ${sAlpha})`);
 }
 
 function startInlineRename(container, titleEl, conv) {
@@ -757,4 +832,31 @@ function startInlineTitleEdit() {
   };
   input.addEventListener('blur', onBlur);
   input.addEventListener('keydown', onKey);
+}
+
+async function onExport(format) {
+  if (!state.currentId) return alert('没有选中的对话');
+  try {
+    const res = await window.api.exportConversation({ conversationId: state.currentId, format });
+    if (res?.ok) {
+      alert(`导出成功：\n${res.path}`);
+    } else if (!res?.canceled) {
+      alert('导出失败：' + (res?.error || '未知错误'));
+    }
+  } catch (e) {
+    alert('导出失败：' + e.message);
+  }
+}
+
+async function onExportAll(format) {
+  try {
+    const res = await window.api.exportAllConversations({ format });
+    if (res?.ok) {
+      alert(`导出成功：\n${res.path}`);
+    } else if (!res?.canceled) {
+      alert('导出失败：' + (res?.error || '未知错误'));
+    }
+  } catch (e) {
+    alert('导出失败：' + e.message);
+  }
 }

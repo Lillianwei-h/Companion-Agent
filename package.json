@@ -11,9 +11,10 @@
     "lint": "echo 'add linter if needed'",
     "pack": "echo 'configure electron-builder if needed'"
   },
-  "dependencies": {},
+  "dependencies": {
+    "@google/genai": "^0.3.1"
+  },
   "devDependencies": {
     "electron": "^30.0.0"
   }
 }
-
