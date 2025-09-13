@@ -63,6 +63,11 @@ function defaultSettings() {
         strength: 0.65, // 0..1
         sidebarStrength: 0.35, // 0..1 (独立控制侧栏透明度)
       },
+      names: {
+        user: '我',
+        model: '小助手',
+      },
+      exportIncludeTimestamp: true,
     },
   };
 }

@@ -13,14 +13,13 @@ const elConversations = document.getElementById('conversations');
 const elMessages = document.getElementById('messages');
 const elInput = document.getElementById('input');
 const elSend = document.getElementById('btn-send');
-const elChatTitle = document.getElementById('chat-title');
+let elChatTitle = document.getElementById('chat-title');
 const elNewChat = document.getElementById('btn-new-chat');
 const elSummarize = document.getElementById('btn-summarize');
 const elToggleSidebar = document.getElementById('btn-toggle-sidebar');
-const elExportJson = document.getElementById('btn-export-json');
-const elExportMd = document.getElementById('btn-export-md');
-const elExportAllJson = document.getElementById('btn-export-all-json');
-const elExportAllMd = document.getElementById('btn-export-all-md');
+const elExportMenuBtn = document.getElementById('btn-export-menu');
+const elExportDropdown = document.getElementById('export-dropdown');
+const elExportIncludeTs = document.getElementById('export-include-ts');
 const elDeleteCurrent = document.getElementById('btn-delete-current');
 
 const elSettingsModal = document.getElementById('settings-modal');
@@ -53,6 +52,8 @@ const elNotifProactive = document.getElementById('notif-proactive');
 const elVibrancyEnabled = document.getElementById('vibrancy-enabled');
 const elVibrancyStrength = document.getElementById('vibrancy-strength');
 const elVibrancySidebarStrength = document.getElementById('vibrancy-sidebar-strength');
+const elNameUser = document.getElementById('name-user');
+const elNameModel = document.getElementById('name-model');
 const elAvatarUserPreview = document.getElementById('avatar-user-preview');
 const elAvatarAgentPreview = document.getElementById('avatar-agent-preview');
 const elPickAvatarUser = document.getElementById('pick-avatar-user');
@@ -103,6 +104,10 @@ async function init() {
     elChat.style.setProperty('--composer-height', '140px');
   }
   setupChatResizer();
+  // Initialize export include timestamp toggle from settings
+  if (elExportIncludeTs) {
+    elExportIncludeTs.checked = state.settings?.ui?.exportIncludeTimestamp ?? true;
+  }
   // Apply initial translucency from settings
   applyTranslucencyFromSettings();
   // Reapply when system theme changes
@@ -285,7 +290,8 @@ function avatarSrc(role) {
 function renderMessages() {
   const conv = (state.conversationsStore.conversations || []).find(c => c.id === state.currentId);
   if (!conv) return;
-  elChatTitle.innerText = conv.title;
+  const ttl = document.getElementById('chat-title');
+  if (ttl) ttl.innerText = conv.title;
   elMessages.innerHTML = '';
   conv.messages.forEach(msg => {
     const row = document.createElement('div');
@@ -315,6 +321,8 @@ function renderMessages() {
   });
   // Scroll to bottom
   elMessages.scrollTop = elMessages.scrollHeight;
+  // Rebind title edit after DOM updates
+  bindTitleInlineEdit();
 }
 
 function formatTime(ts) {
@@ -328,14 +336,14 @@ function formatTime(ts) {
 
 async function onSend() {
   const text = elInput.value.trim();
-  if (!text || state.ui.sending) return;
+  if (state.ui.sending) return;
   state.ui.sending = true;
   elSend.disabled = true;
   // Clear input immediately and keep focus
   elInput.value = '';
   elInput.focus();
   // Optimistically render user message
-  appendOptimisticUser(text);
+  if (text) appendOptimisticUser(text);
   // Show typing indicator and placeholder
   startTypingPlaceholder();
   try {
@@ -460,6 +468,8 @@ function fillSettingsForm() {
   elVibrancyEnabled.checked = s.ui?.vibrancy?.enabled ?? vDefault;
   elVibrancyStrength.value = Math.round((s.ui?.vibrancy?.strength ?? 0.65) * 100);
   elVibrancySidebarStrength.value = Math.round((s.ui?.vibrancy?.sidebarStrength ?? 0.35) * 100);
+  elNameUser.value = s.ui?.names?.user || '我';
+  elNameModel.value = s.ui?.names?.model || '小助手';
   if (s.avatars?.user) elAvatarUserPreview.src = s.avatars.user; else elAvatarUserPreview.removeAttribute('src');
   if (s.avatars?.agent) elAvatarAgentPreview.src = s.avatars.agent; else elAvatarAgentPreview.removeAttribute('src');
 }
@@ -490,6 +500,10 @@ function buildSettingsPatchFromForm() {
         enabled: !!elVibrancyEnabled.checked,
         strength: Math.max(0, Math.min(1, Number(elVibrancyStrength.value) / 100 || 0.65)),
         sidebarStrength: Math.max(0, Math.min(1, Number(elVibrancySidebarStrength.value) / 100 || 0.35)),
+      },
+      names: {
+        user: elNameUser.value.trim() || '我',
+        model: elNameModel.value.trim() || '小助手',
       },
     },
   };
@@ -626,10 +640,31 @@ elToggleSidebar?.addEventListener('click', () => {
   app.classList.toggle('sidebar-hidden');
   elToggleSidebar.textContent = app.classList.contains('sidebar-hidden') ? '显示会话列表' : '隐藏会话列表';
 });
-elExportJson?.addEventListener('click', async () => { await onExport('json'); });
-elExportMd?.addEventListener('click', async () => { await onExport('md'); });
-elExportAllJson?.addEventListener('click', async () => { await onExportAll('json'); });
-elExportAllMd?.addEventListener('click', async () => { await onExportAll('md'); });
+elExportMenuBtn?.addEventListener('click', (e) => {
+  e.stopPropagation();
+  toggleExportMenu();
+});
+elExportDropdown?.addEventListener('click', async (e) => {
+  e.stopPropagation();
+  const target = e.target;
+  if (!(target instanceof HTMLElement)) return;
+  const action = target.getAttribute('data-action');
+  if (!action) return;
+  hideExportMenu();
+  const includeTs = !!elExportIncludeTs?.checked;
+  if (action === 'current-json') return onExport('json', includeTs);
+  if (action === 'current-md') return onExport('md', includeTs);
+  if (action === 'all-json') return onExportAll('json', includeTs);
+  if (action === 'all-md') return onExportAll('md', includeTs);
+});
+elExportIncludeTs?.addEventListener('change', async () => {
+  try {
+    const nextUi = { ...(state.settings.ui || {}), exportIncludeTimestamp: !!elExportIncludeTs.checked };
+    state.settings = await window.api.updateSettings({ ui: nextUi });
+  } catch {}
+});
+document.addEventListener('click', hideExportMenu);
+window.addEventListener('keydown', (e) => { if (e.key === 'Escape') hideExportMenu(); });
 elDeleteCurrent?.addEventListener('click', async () => {
   if (!state.currentId) return;
   await deleteConversationById(state.currentId);
@@ -781,7 +816,7 @@ function startInlineRename(container, titleEl, conv) {
       state.conversationsStore = await window.api.listConversations();
     }
     renderConversations();
-    renderMessages();
+    if (conv.id === state.currentId) renderMessages();
   }
   function cancel() {
     input.removeEventListener('blur', commit);
@@ -790,21 +825,29 @@ function startInlineRename(container, titleEl, conv) {
 }
 
 // Edit current chat title inline
-elChatTitle.addEventListener('dblclick', () => startInlineTitleEdit());
-elChatTitle.addEventListener('click', (e) => {
-  // optional: single-click to edit when no selection
-});
+function bindTitleInlineEdit() {
+  const cur = document.getElementById('chat-title');
+  if (!cur) return;
+  // Avoid duplicate listeners by cloning and replacing or checking a flag
+  if (!cur._inlineBound) {
+    cur.addEventListener('dblclick', () => startInlineTitleEdit());
+    cur._inlineBound = true;
+  }
+  elChatTitle = cur;
+}
 
 function startInlineTitleEdit() {
   const conv = (state.conversationsStore.conversations || []).find(c => c.id === state.currentId);
   if (!conv) return;
+  const currentTitle = document.getElementById('chat-title');
+  if (!currentTitle) return;
   const input = document.createElement('input');
   input.type = 'text';
   input.className = 'chat-title-edit';
   input.value = conv.title || '';
-  const original = elChatTitle.textContent;
-  const parent = elChatTitle.parentNode;
-  elChatTitle.replaceWith(input);
+  const original = currentTitle.textContent;
+  const parent = currentTitle.parentNode;
+  parent.replaceChild(input, currentTitle);
   input.focus();
   input.select();
   const finish = async (save) => {
@@ -822,8 +865,8 @@ function startInlineTitleEdit() {
     const data = (state.conversationsStore.conversations || []).find(c => c.id === state.currentId);
     titleDiv.textContent = data ? data.title : (save ? newTitle : original);
     parent.replaceChild(titleDiv, input);
-    // rebind inline edit events
-    titleDiv.addEventListener('dblclick', () => startInlineTitleEdit());
+    // rebind and refresh reference
+    bindTitleInlineEdit();
   };
   const onBlur = () => finish(true);
   const onKey = (e) => {
@@ -834,10 +877,11 @@ function startInlineTitleEdit() {
   input.addEventListener('keydown', onKey);
 }
 
-async function onExport(format) {
+async function onExport(format, includeTs) {
   if (!state.currentId) return alert('没有选中的对话');
   try {
-    const res = await window.api.exportConversation({ conversationId: state.currentId, format });
+    const useTs = includeTs === undefined ? (!!state.settings?.ui?.exportIncludeTimestamp ?? true) : !!includeTs;
+    const res = await window.api.exportConversation({ conversationId: state.currentId, format, includeTimestamp: useTs });
     if (res?.ok) {
       alert(`导出成功：\n${res.path}`);
     } else if (!res?.canceled) {
@@ -848,9 +892,10 @@ async function onExport(format) {
   }
 }
 
-async function onExportAll(format) {
+async function onExportAll(format, includeTs) {
   try {
-    const res = await window.api.exportAllConversations({ format });
+    const useTs = includeTs === undefined ? (!!state.settings?.ui?.exportIncludeTimestamp ?? true) : !!includeTs;
+    const res = await window.api.exportAllConversations({ format, includeTimestamp: useTs });
     if (res?.ok) {
       alert(`导出成功：\n${res.path}`);
     } else if (!res?.canceled) {
@@ -859,4 +904,13 @@ async function onExportAll(format) {
   } catch (e) {
     alert('导出失败：' + e.message);
   }
+}
+
+function toggleExportMenu() {
+  if (!elExportDropdown) return;
+  elExportDropdown.classList.toggle('hidden');
+}
+function hideExportMenu() {
+  if (!elExportDropdown) return;
+  elExportDropdown.classList.add('hidden');
 }

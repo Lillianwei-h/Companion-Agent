@@ -28,10 +28,18 @@
           <div class="chat-actions">
             <button id="btn-toggle-sidebar">隐藏会话列表</button>
             <button id="btn-summarize">总结加入记忆库</button>
-            <button id="btn-export-json">导出JSON</button>
-            <button id="btn-export-md">导出Markdown</button>
-            <button id="btn-export-all-json">导出全部(JSON)</button>
-            <button id="btn-export-all-md">导出全部(MD)</button>
+            <div class="export-menu">
+              <button id="btn-export-menu">导出 ▾</button>
+              <div id="export-dropdown" class="dropdown hidden">
+                <div class="dropdown-header">
+                  <label class="inline small">包含时间戳 <input id="export-include-ts" type="checkbox" checked /></label>
+                </div>
+                <button data-action="current-json">导出当前（JSON）</button>
+                <button data-action="current-md">导出当前（Markdown）</button>
+                <button data-action="all-json">导出全部（JSON）</button>
+                <button data-action="all-md">导出全部（Markdown）</button>
+              </div>
+            </div>
             <!-- <button id="btn-delete-current" class="danger">删除当前对话</button> -->
           </div>
         </div>
@@ -99,6 +107,9 @@
               <label>半透明强度 <input id="vibrancy-strength" type="range" min="0" max="100" step="5" /></label>
               <label>侧栏半透明强度 <input id="vibrancy-sidebar-strength" type="range" min="0" max="100" step="5" /></label>
               <div class="muted">提示：较高强度更透明。轻度可读性更强。</div>
+              <h3>称呼</h3>
+              <label>用户称呼 <input id="name-user" type="text" placeholder="我 / User" /></label>
+              <label>助手称呼 <input id="name-model" type="text" placeholder="小助手 / You" /></label>
             </div>
           </section>
           <section>

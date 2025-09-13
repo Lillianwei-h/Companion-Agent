@@ -59,14 +59,14 @@ async function geminiChatSend({ settings, history, message }) {
     { category: 'HARM_CATEGORY_DANGEROUS_CONTENT', threshold: 'BLOCK_NONE' }
   ];
   let text = '';
+  const names = { user: (settings?.ui?.names?.user || 'User'), model: (settings?.ui?.names?.model || 'You') };
   for (const historyPart of history) {
-    console.log(`  [${historyPart.role}] ${historyPart.parts.map(p => p.text).join(' ')}`);
-    text = text + `${historyPart.role === 'model' ? 'You:' : 'User:'} ${historyPart.parts.map(p => p.text).join(' ')}\n`;
+    const label = historyPart.role === 'model' ? (names.model + ':') : (names.user + ':');
+    text = text + `${label} ${historyPart.parts.map(p => p.text).join(' ')}\n`;
   }
   if (message != "") {
-    text = text + 'User: ' + message ;
+    text = text + ((names.user + ': ') + message) ;
   }
-  // console.log('Gemini generate text:', { model, history, text });
   console.log('Gemini generate text:', { model, text });
   const resp = await ai.models.generateContent({ model, contents: text, config: { safetySettings } });
   const content = (resp && (resp.text || resp.output_text || '').toString().trim()) || '';
@@ -85,37 +85,6 @@ function toGeminiHistoryItem(msg) {
   };
 }
 
-async function geminiChatSend2({ settings, history, message }) {
-  let GoogleGenAI;
-  try {
-    const lib = require('@google/genai');
-    GoogleGenAI = lib.GoogleGenAI || lib;
-  } catch (e) {
-    throw new Error('Gemini SDK 未安装。请执行: npm i @google/genai');
-  }
-  const apiKey = settings?.api?.apiKey;
-  if (!apiKey) throw new Error('缺少 Gemini API Key');
-  const ai = new GoogleGenAI({ apiKey });
-  const model = settings?.api?.model || 'gemini-2.0-flash';
-  const safetySettings = [
-    { category: 'HARM_CATEGORY_HARASSMENT', threshold: 'BLOCK_NONE' },
-    { category: 'HARM_CATEGORY_HATE_SPEECH', threshold: 'BLOCK_NONE' },
-    { category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT', threshold: 'BLOCK_NONE' },
-    { category: 'HARM_CATEGORY_CIVIC_INTEGRITY', threshold: 'BLOCK_NONE' },
-    { category: 'HARM_CATEGORY_DANGEROUS_CONTENT', threshold: 'BLOCK_NONE' }
-  ];
-  const chat = ai.chats.create({ model: model, history: history, config: { safetySettings: safetySettings } });
-  // console.log('Gemini chat send:', { model, history, message });
-  for (const historyPart of history) {
-    console.log(`  [${historyPart.role}] ${historyPart.parts.map(p => p.text).join(' ')}`);
-  }
-  // message = message + '你的回答不要包含任何时间戳等多余信息。';
-  const resp = await chat.sendMessage({ message });
-  console.log('Gemini response:', resp);
-  const textResp = (resp && (resp.text || resp.output_text || '').toString().trim()) || '';
-  return textResp;
-}
-
 async function callChat({ settings, conversation, memory }) {
   const persona = settings?.persona || '';
   const systemPrompt = buildSystemPrompt(persona, memory);
@@ -127,10 +96,17 @@ async function callChat({ settings, conversation, memory }) {
       { role: 'user', parts: [{ text: `SYSTEM:\n${systemPrompt}` }] },
       ...msgs.map(toGeminiHistoryItem),
     ];
-    const prompt = latest?.role === 'user' ? '' : '请继续';
+    const prompt = latest?.role === 'user' ? '' : '【请继续回复消息】';
     return await geminiChatSend({ settings, history, message: prompt });
   } else {
-    const messages = [ { role: 'system', content: systemPrompt }, ...msgs ];
+    const names = { user: (settings?.ui?.names?.user || 'User'), model: (settings?.ui?.names?.model || 'You') };
+    const messages = [
+      { role: 'system', content: systemPrompt },
+      ...msgs.map(m => ({
+        role: m.role,
+        content: `${m.timestamp ? `[${formatTs(m.timestamp)}] ` : ''}${m.role === 'assistant' ? (names.model + ': ') : (names.user + ': ')}${m.content}`,
+      })),
+    ];
     const body = {
       model: settings?.api?.model || 'gpt-4o-mini',
       messages,
@@ -159,9 +135,13 @@ async function proactiveCheck({ settings, conversation, memory, now }) {
     const instruction = `现在的时间是 ${typeof now === 'string' ? now : now.toLocaleString()} 如果你发现我一段时间没有回复你，你要主动给我发消息。如果你想主动联系我，也可以直接给我发消息。如果你决定不发信息，请回复 SKIP；若需要，请以 SEND: <消息> 格式输出。`;
     content = await geminiChatSend({ settings, history, message: instruction });
   } else {
+    const names = { user: (settings?.ui?.names?.user || 'User'), model: (settings?.ui?.names?.model || 'You') };
     const messages = [
       { role: 'system', content: systemPrompt },
-      ...pickRecentMessages(conversation.messages, limit).map(m => ({ role: m.role, content: m.content })),
+      ...pickRecentMessages(conversation.messages, limit).map(m => ({
+        role: m.role,
+        content: `${m.timestamp ? `[${formatTs(m.timestamp)}] ` : ''}${m.role === 'assistant' ? (names.model + ': ') : (names.user + ': ')}${m.content}`,
+      })),
       { role: 'user', content:
         `现在的时间是 ${typeof now === 'string' ? now : now.toLocaleString()} 。` +
         `如果你发现我一段时间没有回复你，你要主动给我发消息。如果你想主动联系我，也可以直接给我发消息。如果你决定不发信息，请回复 SKIP；若需要，请以 SEND: <消息> 格式输出。`
@@ -194,9 +174,13 @@ async function summarizeConversation({ settings, conversation }) {
     const history = recent.map(toGeminiHistoryItem);
     return await geminiChatSend({ settings, history, message: systemPrompt });
   } else {
+    const names = { user: (settings?.ui?.names?.user || 'User'), model: (settings?.ui?.names?.model || 'You') };
     const messages = [
       { role: 'system', content: systemPrompt },
-      ...pickRecentMessages(conversation.messages, limit).map(m => ({ role: m.role, content: m.content }))
+      ...pickRecentMessages(conversation.messages, limit).map(m => ({
+        role: m.role,
+        content: `${m.timestamp ? `[${formatTs(m.timestamp)}] ` : ''}${m.role === 'assistant' ? (names.model + ': ') : (names.user + ': ')}${m.content}`,
+      })),
     ];
     const body = {
       model: settings?.api?.model || 'gpt-4o-mini',

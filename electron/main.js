@@ -158,6 +158,15 @@ ipcMain.handle('conversations:create', async (_evt, title) => {
   };
   store.conversations.push(conv);
   Stores.conversations.write(store);
+  // Immediately try a proactive check on the new conversation, even if empty
+  try {
+    const settings = Stores.settings.read();
+    if (settings?.proactive?.enabled) {
+      await maybeSendProactive(conv, settings);
+    }
+  } catch (e) {
+    console.error('proactive after create failed', e);
+  }
   return conv;
 });
 
@@ -237,10 +246,13 @@ ipcMain.handle('model:sendMessage', async (_evt, { conversationId, userText }) =
   const conv = convStore.conversations.find(c => c.id === conversationId);
   if (!conv) throw new Error('Conversation not found');
 
-  // Append user message
-  const userMsg = { id: `msg_${Date.now()}`, role: 'user', content: userText, timestamp: new Date().toISOString() };
-  conv.messages.push(userMsg);
-  Stores.conversations.write(convStore);
+  // Append user message only if non-empty
+  const trimmed = (userText || '').trim();
+  if (trimmed) {
+    const userMsg = { id: `msg_${Date.now()}`, role: 'user', content: trimmed, timestamp: new Date().toISOString() };
+    conv.messages.push(userMsg);
+    Stores.conversations.write(convStore);
+  }
 
   const memory = Stores.memory.read();
   const reply = await callChat({ settings, conversation: conv, memory });
@@ -418,7 +430,7 @@ ipcMain.handle('ui:applyVibrancy', async (_evt, enabled) => {
 });
 
 // Export conversation as JSON or Markdown
-ipcMain.handle('conversations:export', async (_evt, { conversationId, format }) => {
+ipcMain.handle('conversations:export', async (_evt, { conversationId, format, includeTimestamp }) => {
   try {
     const store = Stores.conversations.read();
     const conv = (store.conversations || []).find(c => c.id === conversationId);
@@ -434,7 +446,9 @@ ipcMain.handle('conversations:export', async (_evt, { conversationId, format }) 
     });
     if (res.canceled || !res.filePath) return { ok: false, canceled: true };
     const filePath = res.filePath;
-    const content = ext === 'md' ? conversationToMarkdown(conv) : JSON.stringify(conv, null, 2);
+    const content = ext === 'md'
+      ? conversationToMarkdown(conv, !!includeTimestamp)
+      : JSON.stringify(filterConversationTimestamps(conv, !!includeTimestamp), null, 2);
     fs.writeFileSync(filePath, content, 'utf-8');
     return { ok: true, path: filePath };
   } catch (e) {
@@ -448,15 +462,15 @@ function safeFilename(name) {
     .slice(0, 120);
 }
 
-function conversationToMarkdown(conv) {
+function conversationToMarkdown(conv, includeTs = true) {
   const lines = [];
   lines.push(`# ${conv.title || '对话'}`);
-  if (conv.createdAt) lines.push(`创建时间: ${new Date(conv.createdAt).toLocaleString()}`);
+  if (includeTs && conv.createdAt) lines.push(`创建时间: ${new Date(conv.createdAt).toLocaleString()}`);
   lines.push('');
   for (const m of (conv.messages || [])) {
     const role = m.role === 'user' ? '用户' : (m.role === 'assistant' ? '助手' : (m.role || '系统'));
     const ts = m.timestamp ? new Date(m.timestamp).toLocaleString() : '';
-    lines.push(`## ${role} · ${ts}`.trim());
+    lines.push(includeTs ? `## ${role} · ${ts}`.trim() : `## ${role}`);
     lines.push('');
     lines.push(m.content || '');
     lines.push('');
@@ -464,7 +478,7 @@ function conversationToMarkdown(conv) {
   return lines.join('\n');
 }
 
-ipcMain.handle('conversations:exportAll', async (_evt, { format }) => {
+ipcMain.handle('conversations:exportAll', async (_evt, { format, includeTimestamp }) => {
   try {
     const store = Stores.conversations.read();
     const list = store.conversations || [];
@@ -479,7 +493,9 @@ ipcMain.handle('conversations:exportAll', async (_evt, { format }) => {
     });
     if (res.canceled || !res.filePath) return { ok: false, canceled: true };
     const filePath = res.filePath;
-    const content = ext === 'md' ? conversationsToMarkdown(list) : JSON.stringify({ conversations: list }, null, 2);
+    const content = ext === 'md'
+      ? conversationsToMarkdown(list, !!includeTimestamp)
+      : JSON.stringify({ conversations: list.map(c => filterConversationTimestamps(c, !!includeTimestamp)) }, null, 2);
     fs.writeFileSync(filePath, content, 'utf-8');
     return { ok: true, path: filePath };
   } catch (e) {
@@ -487,13 +503,29 @@ ipcMain.handle('conversations:exportAll', async (_evt, { format }) => {
   }
 });
 
-function conversationsToMarkdown(convs) {
+function conversationsToMarkdown(convs, includeTs = true) {
   const parts = [];
   parts.push(`# 所有对话`);
   parts.push('');
   for (const conv of convs) {
-    parts.push(conversationToMarkdown(conv));
+    parts.push(conversationToMarkdown(conv, includeTs));
     parts.push('');
   }
   return parts.join('\n');
+}
+
+function filterConversationTimestamps(conv, includeTs = true) {
+  if (includeTs) return conv;
+  try {
+    const copy = JSON.parse(JSON.stringify(conv));
+    if (copy) {
+      if (copy.createdAt) delete copy.createdAt;
+      if (Array.isArray(copy.messages)) {
+        copy.messages = copy.messages.map(m => { const n = { ...m }; delete n.timestamp; return n; });
+      }
+    }
+    return copy;
+  } catch {
+    return conv;
+  }
 }

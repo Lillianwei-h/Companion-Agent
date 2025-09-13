@@ -48,6 +48,12 @@ body { background: var(--bg); color: var(--text); font-family: ui-sans-serif, sy
 .chat-header { -webkit-app-region: drag; }
 .chat-title { font-weight: 600; }
 .chat-actions { display: flex; gap: 8px; }
+.export-menu { position: relative; }
+.dropdown { position: absolute; right: 0; top: 100%; margin-top: 6px; background: var(--panel); border: 1px solid var(--border); border-radius: 8px; box-shadow: 0 6px 24px rgba(0,0,0,0.3); display: flex; flex-direction: column; min-width: 220px; z-index: 20; backdrop-filter: blur(10px) saturate(120%); -webkit-backdrop-filter: blur(10px) saturate(120%); }
+.dropdown button { background: transparent; border: none; color: var(--text); text-align: left; padding: 8px 12px; cursor: pointer; }
+.dropdown button:hover { background: var(--panel-2); }
+.dropdown-header { padding: 8px 12px; border-bottom: 1px solid var(--border); }
+label.small { font-size: 12px; }
 .chat-title-row { display: flex; align-items: center; gap: 8px; }
 .typing-indicator { font-size: inherit; color: var(--text); }
 /* Keep interactive elements clickable (not draggable region) */
@@ -105,7 +111,7 @@ input:focus, textarea:focus { outline: 2px solid var(--accent-2); outline-offset
 .message.assistant .bubble-wrap { align-items: flex-start; }
 
 /* Side-specific bubble widths */
-.message.assistant .bubble { max-width: 72%; }
+.message.assistant .bubble { max-width: 88%; }
 .message.user .bubble { max-width: 88%; }
 
 /* Ensure container grows so bubbles can use percentage max-width */
