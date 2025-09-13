@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>穆</title>
+    <link rel="stylesheet" href="./style.css" />
+  </head>
+  <body>
+    <div id="app">
+      <aside class="sidebar">
+        <div class="sidebar-header">
+          <div class="app-title">穆</div>
+          <button id="btn-new-chat" class="primary">新建对话</button>
+        </div>
+        <div id="conversations" class="conversation-list"></div>
+        <div class="sidebar-footer">
+          <button id="btn-memory">记忆库</button>
+          <button id="btn-settings">设置</button>
+        </div>
+      </aside>
+      <main class="chat">
+        <div class="chat-header">
+          <div class="chat-title-row">
+            <div id="chat-title" class="chat-title">加载中...</div>
+            <div id="typing-indicator" class="hidden typing-indicator">对方正在输入中…</div>
+          </div>
+          <div class="chat-actions">
+            <button id="btn-toggle-sidebar">隐藏会话列表</button>
+            <button id="btn-summarize">总结加入记忆库</button>
+            <!-- <button id="btn-delete-current" class="danger">删除当前对话</button> -->
+          </div>
+        </div>
+        <div id="messages" class="messages"></div>
+        <div id="chat-resize" class="chat-resizer" title="拖动调整输入区高度"></div>
+        <div class="composer">
+          <textarea id="input" rows="4" placeholder="输入内容，按发送..."></textarea>
+          <button id="btn-send" class="primary">发送</button>
+        </div>
+      </main>
+    </div>
+
+    <!-- Settings Modal -->
+    <div id="settings-modal" class="modal hidden">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h2>设置</h2>
+          <button id="close-settings" class="icon">✕</button>
+        </div>
+        <div class="modal-body">
+          <section>
+            <h3>人格设定（System Prompt）</h3>
+            <textarea id="persona" rows="4"></textarea>
+          </section>
+          <section class="grid-2">
+            <div>
+              <h3>API 配置</h3>
+              <label>Base URL <input id="api-base" type="text" placeholder="https://api.openai.com" /></label>
+              <label>API Key <input id="api-key" type="password" placeholder="sk-..." /></label>
+              <label>Model <input id="api-model" type="text" placeholder="gpt-4o-mini" /></label>
+              <label>Max New Tokens <input id="api-max" type="number" min="1" max="4000" /></label>
+              <label>Temperature <input id="api-temp" type="number" step="0.1" min="0" max="2" /></label>
+              <label>上下文消息条数 <input id="api-history" type="number" min="1" max="500" /></label>
+              <label>总结上下文条数 <input id="api-summary-history" type="number" min="1" max="1000" /></label>
+              <div style="margin-top:8px; display:flex; gap:8px; align-items:center;">
+                <button id="test-api">测试 API</button>
+                <span id="test-api-status" class="muted"></span>
+              </div>
+            </div>
+            <div>
+              <h3>通知与主动联系</h3>
+              <label><input id="proactive-enabled" type="checkbox" /> 启用每隔固定时间判断</label>
+              <label>间隔（分钟） <input id="proactive-interval" type="number" min="1" max="240" /></label>
+              <label><input id="notif-proactive" type="checkbox" /> 新消息显示系统通知</label>
+              <div style="margin-top:8px; display:flex; gap:8px; align-items:center; flex-wrap: wrap;">
+                <button id="btn-test-notif">发送测试通知</button>
+                <button id="btn-proactive-once">立即检查一次</button>
+                <span id="proactive-status" class="muted"></span>
+              </div>
+              <h3>头像</h3>
+              <div class="avatar-row">
+                <div>
+                  <div>我的头像</div>
+                  <img id="avatar-user-preview" class="avatar" alt="user" />
+                  <button id="pick-avatar-user">选择图片</button>
+                </div>
+                <div>
+                  <div>模型头像</div>
+                  <img id="avatar-agent-preview" class="avatar" alt="agent" />
+                  <button id="pick-avatar-agent">选择图片</button>
+                </div>
+              </div>
+            </div>
+          </section>
+          <section>
+            <h3>调试与日志</h3>
+            <div style="display:flex; gap:8px; margin-bottom:8px; flex-wrap: wrap;">
+              <button id="btn-logs-refresh">刷新日志</button>
+              <button id="btn-logs-clear" class="danger">清空日志</button>
+              <span class="muted">显示最近 200 条记录（包含 SKIP）</span>
+            </div>
+            <div id="logs-list" style="max-height: 240px; overflow:auto; background:#0c0e12; border:1px solid var(--border); border-radius:8px; padding:8px; white-space:pre-wrap; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size:12px;"></div>
+          </section>
+        </div>
+        <div class="modal-footer">
+          <button id="save-settings" class="primary">保存</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Memory Modal -->
+    <div id="memory-modal" class="modal hidden">
+      <div class="modal-content large">
+        <div class="modal-header">
+          <h2>记忆库</h2>
+          <button id="close-memory" class="icon">✕</button>
+        </div>
+        <div class="modal-body grid-2">
+          <div class="memory-list" id="memory-list"></div>
+          <div class="memory-editor">
+            <input id="mem-title" type="text" placeholder="标题" />
+            <textarea id="mem-content" rows="16" placeholder="内容"></textarea>
+            <div class="mem-actions">
+              <button id="mem-new">新建</button>
+              <button id="mem-save" class="primary">保存</button>
+              <button id="mem-delete" class="danger">删除</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script src="./renderer.js"></script>
+  </body>
+  </html>

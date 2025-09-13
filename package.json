@@ -1,0 +1,19 @@
+{
+  "name": "companion-agent",
+  "version": "0.1.0",
+  "description": "A companion agent desktop app with proactive messaging and OpenAI-compatible backend",
+  "main": "electron/main.js",
+  "author": "",
+  "license": "MIT",
+  "scripts": {
+    "start": "electron .",
+    "dev": "electron .",
+    "lint": "echo 'add linter if needed'",
+    "pack": "echo 'configure electron-builder if needed'"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "electron": "^30.0.0"
+  }
+}
+
