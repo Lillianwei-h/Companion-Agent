@@ -2,7 +2,7 @@ const { app, BrowserWindow, ipcMain, Notification, dialog } = require('electron'
 const path = require('path');
 const fs = require('fs');
 const { ensureStores, Stores } = require('../src/common/persist');
-const { callChat, proactiveCheck, summarizeConversation, testApi } = require('../src/common/openai');
+const { callChat, proactiveCheck, summarizeConversation, testApi, initialGreeting } = require('../src/common/openai');
 
 let mainWindow;
 let proactiveTimer = null;
@@ -48,6 +48,19 @@ app.whenReady().then(async () => {
 app.on('window-all-closed', function () {
   if (process.platform !== 'darwin') app.quit();
 });
+
+function formatStartTime(date) {
+  try {
+    // Localized string without seconds, 24h if supported
+    return date.toLocaleString(undefined, {
+      year: 'numeric', month: '2-digit', day: '2-digit',
+      hour: '2-digit', minute: '2-digit', hour12: false,
+    });
+  } catch (e) {
+    // Fallback: ISO without seconds
+    return date.toISOString().slice(0, 16).replace('T', ' ');
+  }
+}
 
 function startProactiveLoop() {
   if (proactiveTimer) clearInterval(proactiveTimer);
@@ -150,22 +163,31 @@ ipcMain.handle('conversations:list', async () => {
 ipcMain.handle('conversations:create', async (_evt, title) => {
   const store = Stores.conversations.read();
   const id = `conv_${Date.now()}`;
+  const now = new Date();
   const conv = {
     id,
-    title: title || '新对话',
-    createdAt: new Date().toISOString(),
+    title: title || formatStartTime(now),
+    createdAt: now.toISOString(),
     messages: [],
   };
   store.conversations.push(conv);
   Stores.conversations.write(store);
-  // Immediately try a proactive check on the new conversation, even if empty
+  // Immediately send a greeting message using only system prompt + memory
   try {
     const settings = Stores.settings.read();
-    if (settings?.proactive?.enabled) {
-      await maybeSendProactive(conv, settings);
+    const memory = Stores.memory.read();
+    const text = await initialGreeting({ settings, memory });
+    if (text) {
+      const convStore = Stores.conversations.read();
+      const c = convStore.conversations.find(x => x.id === id);
+      if (c) {
+        c.messages.push({ id: `msg_${Date.now()}`, role: 'assistant', content: text, timestamp: new Date().toISOString() });
+        Stores.conversations.write(convStore);
+        mainWindow?.webContents.send('data:conversations-updated');
+      }
     }
   } catch (e) {
-    console.error('proactive after create failed', e);
+    console.error('initial greeting failed', e);
   }
   return conv;
 });
@@ -202,6 +224,30 @@ ipcMain.handle('conversations:appendMessage', async (_evt, { id, message }) => {
   });
   Stores.conversations.write(store);
   return conv;
+});
+
+ipcMain.handle('conversations:updateMessage', async (_evt, { conversationId, messageId, content }) => {
+  const store = Stores.conversations.read();
+  const conv = store.conversations.find(c => c.id === conversationId);
+  if (!conv) return { ok: false, error: 'Conversation not found' };
+  const msg = (conv.messages || []).find(m => m.id === messageId);
+  if (!msg) return { ok: false, error: 'Message not found' };
+  msg.content = content;
+  Stores.conversations.write(store);
+  mainWindow?.webContents.send('data:conversations-updated');
+  return { ok: true };
+});
+
+ipcMain.handle('conversations:deleteMessage', async (_evt, { conversationId, messageId }) => {
+  const store = Stores.conversations.read();
+  const conv = store.conversations.find(c => c.id === conversationId);
+  if (!conv) return { ok: false, error: 'Conversation not found' };
+  const before = conv.messages?.length || 0;
+  conv.messages = (conv.messages || []).filter(m => m.id !== messageId);
+  if (conv.messages.length === before) return { ok: false, error: 'Message not found' };
+  Stores.conversations.write(store);
+  mainWindow?.webContents.send('data:conversations-updated');
+  return { ok: true };
 });
 
 ipcMain.handle('memory:list', async () => {

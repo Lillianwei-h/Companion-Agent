@@ -15,6 +15,11 @@
   --field-bg: rgba(255,255,255,0.08);
   --field-border: rgba(255,255,255,0.16);
   --field-placeholder: rgba(230,232,239,0.50);
+  /* Opaque button palette */
+  --button-bg: #262b38;           /* dark default */
+  --button-fg: #e6e8ef;
+  --button-border: rgba(255,255,255,0.16);
+  --button-hover-bg: #30364a;
 }
 
 * { box-sizing: border-box; }
@@ -44,14 +49,14 @@ body { background: var(--bg); color: var(--text); font-family: ui-sans-serif, sy
 .conversation-title { font-size: 14px; }
 
 .chat { display: grid; grid-template-rows: auto 1fr var(--resizer-height, 6px) var(--composer-height, 140px); min-height: 0; }
-.chat-header { background: var(--panel); border-bottom: 1px solid var(--border); padding: 10px 14px; display: flex; justify-content: space-between; align-items: center; backdrop-filter: blur(8px) saturate(120%); -webkit-backdrop-filter: blur(8px) saturate(120%); }
+.chat-header { background: var(--panel); border-bottom: 1px solid var(--border); padding: 10px 14px; display: flex; justify-content: space-between; align-items: center; backdrop-filter: blur(8px) saturate(120%); -webkit-backdrop-filter: blur(8px) saturate(120%); position: relative; z-index: 50; }
 .chat-header { -webkit-app-region: drag; }
 .chat-title { font-weight: 600; }
 .chat-actions { display: flex; gap: 8px; }
 .export-menu { position: relative; }
-.dropdown { position: absolute; right: 0; top: 100%; margin-top: 6px; background: var(--panel); border: 1px solid var(--border); border-radius: 8px; box-shadow: 0 6px 24px rgba(0,0,0,0.3); display: flex; flex-direction: column; min-width: 220px; z-index: 20; backdrop-filter: blur(10px) saturate(120%); -webkit-backdrop-filter: blur(10px) saturate(120%); }
-.dropdown button { background: transparent; border: none; color: var(--text); text-align: left; padding: 8px 12px; cursor: pointer; }
-.dropdown button:hover { background: var(--panel-2); }
+.dropdown { position: absolute; right: 0; top: 100%; margin-top: 6px; background: var(--button-bg); border: 1px solid var(--button-border); border-radius: 8px; box-shadow: 0 6px 24px rgba(0,0,0,0.3); display: flex; flex-direction: column; min-width: 220px; z-index: 20; }
+.dropdown button { background: var(--button-bg); border: none; color: var(--button-fg); text-align: left; padding: 8px 12px; cursor: pointer; }
+.dropdown button:hover { background: var(--button-hover-bg); }
 .dropdown-header { padding: 8px 12px; border-bottom: 1px solid var(--border); }
 label.small { font-size: 12px; }
 .chat-title-row { display: flex; align-items: center; gap: 8px; }
@@ -68,11 +73,21 @@ label.small { font-size: 12px; }
 .bubble { max-width: 100%; padding: 10px 12px; border-radius: 12px; line-height: 1.4; white-space: pre-wrap; overflow-wrap: anywhere; word-break: normal; }
 .message.user .bubble { background: var(--accent); color: #fff; border-bottom-right-radius: 4px; }
 .message.assistant .bubble { background: var(--panel); border: 1px solid var(--border); border-bottom-left-radius: 4px; }
+.message .msg-actions { position: absolute; top: -8px; right: -8px; display: flex; gap: 6px; opacity: 0; transition: opacity .15s ease; align-items: center; z-index: 3; background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 2px 4px; }
+.bubble-wrap:hover .msg-actions { opacity: 1; }
+.msg-actions button { background: transparent; border: none; color: var(--muted); padding: 2px 6px; cursor: pointer; font-size: 12px; }
+.msg-actions button:hover { color: var(--text); background: var(--panel-2); border-radius: 6px; }
+
+/* Inline message editor */
+.msg-edit { display: grid; gap: 6px; width: 100%; }
+.msg-edit textarea { width: 100%; min-height: 80px; resize: vertical; padding: 8px; background: var(--field-bg); color: var(--text); border: 1px solid var(--field-border); border-radius: 8px; }
+.msg-edit .msg-edit-actions { display: flex; gap: 8px; justify-content: flex-end; }
 
 .composer { display: grid; grid-template-columns: 1fr auto; gap: 8px; padding: 10px; background: var(--panel); border-top: 1px solid var(--border); height: 100%; backdrop-filter: blur(8px) saturate(120%); -webkit-backdrop-filter: blur(8px) saturate(120%); }
 .composer textarea { width: 100%; height: 100%; resize: none; padding: 8px; background: var(--field-bg); color: var(--text); border: 1px solid var(--field-border); border-radius: 8px; backdrop-filter: blur(6px) saturate(120%); -webkit-backdrop-filter: blur(6px) saturate(120%); }
 
-button { background: var(--panel-2); color: var(--text); border: 1px solid var(--border); padding: 8px 10px; border-radius: 8px; cursor: pointer; }
+button { background: var(--button-bg); color: var(--button-fg); border: 1px solid var(--button-border); padding: 8px 10px; border-radius: 8px; cursor: pointer; }
+button:hover { background: var(--button-hover-bg); }
 button.primary { background: var(--accent-2); border: none; }
 button.danger { background: var(--danger); border: none; }
 button.icon { background: transparent; border: none; font-size: 18px; }
@@ -106,7 +121,7 @@ input:focus, textarea:focus { outline: 2px solid var(--accent-2); outline-offset
 .muted { color: var(--muted); font-size: 12px; }
 .hidden { display: none !important; }
 .timestamp { color: var(--muted); font-size: 11px; margin-top: 4px; }
-.bubble-wrap { display: flex; flex-direction: column; gap: 4px; width: 100%; }
+.bubble-wrap { display: flex; flex-direction: column; gap: 4px; width: 100%; position: relative; }
 .message.user .bubble-wrap { align-items: flex-end; }
 .message.assistant .bubble-wrap { align-items: flex-start; }
 
@@ -134,6 +149,10 @@ input:focus, textarea:focus { outline: 2px solid var(--accent-2); outline-offset
     --field-bg: rgba(255,255,255,0.08);
     --field-border: rgba(255,255,255,0.16);
     --field-placeholder: rgba(230,232,239,0.50);
+    --button-bg: #262b38;
+    --button-fg: #e6e8ef;
+    --button-border: rgba(255,255,255,0.16);
+    --button-hover-bg: #30364a;
   }
 }
 
@@ -152,5 +171,9 @@ input:focus, textarea:focus { outline: 2px solid var(--accent-2); outline-offset
     --field-bg: rgba(255,255,255,0.92);
     --field-border: rgba(0,0,0,0.12);
     --field-placeholder: rgba(30,36,48,0.45);
+    --button-bg: #ffffff;
+    --button-fg: #1e2430;
+    --button-border: rgba(0,0,0,0.12);
+    --button-hover-bg: #f2f4f7;
   }
 }

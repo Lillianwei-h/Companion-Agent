@@ -55,8 +55,8 @@ async function geminiChatSend({ settings, history, message }) {
     { category: 'HARM_CATEGORY_HARASSMENT', threshold: 'BLOCK_NONE' },
     { category: 'HARM_CATEGORY_HATE_SPEECH', threshold: 'BLOCK_NONE' },
     { category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT', threshold: 'BLOCK_NONE' },
-    { category: 'HARM_CATEGORY_CIVIC_INTEGRITY', threshold: 'BLOCK_NONE' },
-    { category: 'HARM_CATEGORY_DANGEROUS_CONTENT', threshold: 'BLOCK_NONE' }
+    { category: 'HARM_CATEGORY_DANGEROUS_CONTENT', threshold: 'BLOCK_NONE' },
+    { category: 'HARM_CATEGORY_CIVIC_INTEGRITY', threshold: 'BLOCK_NONE' }
   ];
   let text = '';
   const names = { user: (settings?.ui?.names?.user || 'User'), model: (settings?.ui?.names?.model || 'You') };
@@ -67,8 +67,10 @@ async function geminiChatSend({ settings, history, message }) {
   if (message != "") {
     text = text + ((names.user + ': ') + message) ;
   }
+  text = text + `[对话内容结束]\n注意：你回复时不需要带上姓名和时间戳。只要回复你说的话即可。\n`;
   console.log('Gemini generate text:', { model, text });
-  const resp = await ai.models.generateContent({ model, contents: text, config: { safetySettings } });
+  const resp = await ai.models.generateContent({ model, contents: text, config: { safetySettings: safetySettings } });
+  console.log('Gemini response:', resp);
   const content = (resp && (resp.text || resp.output_text || '').toString().trim()) || '';
   return content;
 }
@@ -96,7 +98,7 @@ async function callChat({ settings, conversation, memory }) {
       { role: 'user', parts: [{ text: `SYSTEM:\n${systemPrompt}` }] },
       ...msgs.map(toGeminiHistoryItem),
     ];
-    const prompt = latest?.role === 'user' ? '' : '【请继续回复消息】';
+    const prompt = latest?.role === 'user' ? '' : '[请继续回复消息]';
     return await geminiChatSend({ settings, history, message: prompt });
   } else {
     const names = { user: (settings?.ui?.names?.user || 'User'), model: (settings?.ui?.names?.model || 'You') };
@@ -117,6 +119,31 @@ async function callChat({ settings, conversation, memory }) {
     const json = await chatCompletions({ baseUrl: settings?.api?.baseUrl, apiKey: settings?.api?.apiKey, body });
     const content = json?.choices?.[0]?.message?.content?.trim() || '';
     return content;
+  }
+}
+
+// Produce a greeting in a fresh conversation using only system prompt + memory
+async function initialGreeting({ settings, memory }) {
+  const persona = settings?.persona || '';
+  const systemPrompt = buildSystemPrompt(persona, memory);
+  const greet = '请你向我发送一条打招呼的信息';
+  if (isGeminiBase(settings?.api?.baseUrl)) {
+    const history = [ { role: 'user', parts: [{ text: `SYSTEM:\n${systemPrompt}` }] } ];
+    return await geminiChatSend({ settings, history, message: greet });
+  } else {
+    const messages = [
+      { role: 'system', content: systemPrompt },
+      { role: 'user', content: greet },
+    ];
+    const body = {
+      model: settings?.api?.model || 'gpt-4o-mini',
+      messages,
+      max_tokens: settings?.api?.maxTokens ?? 256,
+      temperature: settings?.api?.temperature ?? 0.7,
+      stream: false,
+    };
+    const json = await chatCompletions({ baseUrl: settings?.api?.baseUrl, apiKey: settings?.api?.apiKey, body });
+    return json?.choices?.[0]?.message?.content?.trim() || '';
   }
 }
 
@@ -144,7 +171,7 @@ async function proactiveCheck({ settings, conversation, memory, now }) {
       })),
       { role: 'user', content:
         `现在的时间是 ${typeof now === 'string' ? now : now.toLocaleString()} 。` +
-        `如果你发现我一段时间没有回复你，你要主动给我发消息。如果你想主动联系我，也可以直接给我发消息。如果你决定不发信息，请回复 SKIP；若需要，请以 SEND: <消息> 格式输出。`
+        `如果你发现我一段时间没有回复你，你要主动给我发消息。如果你想主动联系我，也可以直接给我发消息。如果你决定不发信息，请回复 SKIP；若需要，请以 SEND: <消息> 格式输出，不要只回复SEND。`
       }
     ];
     const body = {
@@ -216,4 +243,4 @@ async function testApi({ settings }) {
   }
 }
 
-module.exports = { callChat, proactiveCheck, summarizeConversation, testApi };
+module.exports = { callChat, proactiveCheck, summarizeConversation, testApi, initialGreeting };

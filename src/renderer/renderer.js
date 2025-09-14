@@ -85,7 +85,7 @@ async function init() {
   state.settings = await window.api.getSettings();
   state.conversationsStore = await window.api.listConversations();
   if (!state.conversationsStore.conversations.length) {
-    const conv = await window.api.createConversation('新的对话');
+    const conv = await window.api.createConversation();
     state.conversationsStore = await window.api.listConversations();
     state.currentId = conv.id;
   } else {
@@ -269,7 +269,7 @@ async function deleteConversationById(id) {
       window.api.setCurrentConversation(state.currentId).catch(() => {});
     } else {
       // Create a new empty conversation to keep UI stable
-      const created = await window.api.createConversation('新的对话');
+      const created = await window.api.createConversation();
       state.conversationsStore = await window.api.listConversations();
       state.currentId = created.id;
       window.api.setCurrentConversation(state.currentId).catch(() => {});
@@ -296,6 +296,7 @@ function renderMessages() {
   conv.messages.forEach(msg => {
     const row = document.createElement('div');
     row.className = `message ${msg.role}`;
+    row.dataset.mid = msg.id;
     const img = document.createElement('img');
     img.className = 'avatar';
     const src = avatarSrc(msg.role);
@@ -310,6 +311,27 @@ function renderMessages() {
     time.textContent = formatTime(msg.timestamp);
     wrap.appendChild(bubble);
     wrap.appendChild(time);
+
+    // actions
+    const actions = document.createElement('div');
+    actions.className = 'msg-actions';
+    const btnEdit = document.createElement('button');
+    btnEdit.title = '编辑';
+    btnEdit.textContent = '✎';
+    btnEdit.className = 'msg-btn';
+    btnEdit.setAttribute('data-action', 'edit');
+    btnEdit.setAttribute('data-mid', msg.id);
+    const btnDel = document.createElement('button');
+    btnDel.title = '删除';
+    btnDel.textContent = '🗑';
+    btnDel.className = 'msg-btn';
+    btnDel.setAttribute('data-action', 'delete');
+    btnDel.setAttribute('data-mid', msg.id);
+    actions.appendChild(btnEdit);
+    actions.appendChild(btnDel);
+
+    // Place action buttons relative to bubble wrap so absolute positioning works
+    wrap.appendChild(actions);
     if (msg.role === 'user') {
       row.appendChild(img);
       row.appendChild(wrap);
@@ -324,6 +346,27 @@ function renderMessages() {
   // Rebind title edit after DOM updates
   bindTitleInlineEdit();
 }
+
+// Delegate clicks for msg actions to avoid stale handlers
+elMessages.addEventListener('click', async (e) => {
+  const target = e.target;
+  if (!(target instanceof HTMLElement)) return;
+  const btn = target.closest('.msg-btn');
+  if (!btn) return;
+  e.stopPropagation();
+  const action = btn.getAttribute('data-action');
+  const mid = btn.getAttribute('data-mid') || btn.closest('.message')?.getAttribute('data-mid');
+  const cid = state.currentId;
+  if (!mid || !cid) return;
+  const conv = (state.conversationsStore.conversations || []).find(c => c.id === cid);
+  const msg = conv?.messages?.find(m => m.id === mid);
+  if (!conv || !msg) return;
+  if (action === 'edit') {
+    await onEditMessage(cid, mid, msg.content);
+  } else if (action === 'delete') {
+    await onDeleteMessage(cid, mid);
+  }
+});
 
 function formatTime(ts) {
   try {
@@ -428,9 +471,71 @@ function stopTypingPlaceholder() {
   if (row && row.parentNode) row.parentNode.removeChild(row);
 }
 
+async function onEditMessage(conversationId, messageId, oldContent) {
+  const row = elMessages.querySelector(`.message[data-mid="${messageId}"]`);
+  if (!row) return;
+  const wrap = row.querySelector('.bubble-wrap');
+  const bubble = row.querySelector('.bubble');
+  const ts = row.querySelector('.timestamp');
+  if (!wrap || !bubble) return;
+  // Prevent duplicate editors
+  if (wrap.querySelector('.msg-edit')) return;
+
+  bubble.style.display = 'none';
+  if (ts) ts.style.display = 'none';
+  const editor = document.createElement('div');
+  editor.className = 'msg-edit';
+  const textarea = document.createElement('textarea');
+  textarea.value = oldContent || '';
+  const bar = document.createElement('div');
+  bar.className = 'msg-edit-actions';
+  const btnCancel = document.createElement('button');
+  btnCancel.textContent = '取消';
+  const btnSave = document.createElement('button');
+  btnSave.textContent = '保存';
+  btnSave.className = 'primary';
+  bar.appendChild(btnCancel);
+  bar.appendChild(btnSave);
+  editor.appendChild(textarea);
+  editor.appendChild(bar);
+  wrap.appendChild(editor);
+  textarea.focus();
+
+  btnCancel.addEventListener('click', () => {
+    editor.remove();
+    bubble.style.display = '';
+    if (ts) ts.style.display = '';
+  });
+
+  btnSave.addEventListener('click', async () => {
+    const text = textarea.value.trim();
+    try {
+      const res = await window.api.updateMessage({ conversationId, messageId, content: text });
+      if (!res?.ok) throw new Error(res?.error || '更新失败');
+      state.conversationsStore = await window.api.listConversations();
+      renderMessages();
+    } catch (e) {
+      alert('编辑失败：' + e.message);
+    }
+  });
+}
+
+async function onDeleteMessage(conversationId, messageId) {
+  const ok = confirm('确定删除该消息吗？');
+  if (!ok) return;
+  try {
+    const res = await window.api.deleteMessage({ conversationId, messageId });
+    if (!res?.ok) throw new Error(res?.error || '删除失败');
+    state.conversationsStore = await window.api.listConversations();
+    renderMessages();
+  } catch (e) {
+    alert('删除失败：' + e.message);
+  }
+}
+
 async function onNewChat() {
   try {
-    const conv = await window.api.createConversation('新的对话');
+    const conv = await window.api.createConversation();
     state.conversationsStore = await window.api.listConversations();
     state.currentId = conv.id;
     window.api.setCurrentConversation(state.currentId).catch(() => {});

@@ -14,6 +14,8 @@ contextBridge.exposeInMainWorld('api', {
   appendMessage: (payload) => ipcRenderer.invoke('conversations:appendMessage', payload),
   sendMessage: (payload) => ipcRenderer.invoke('model:sendMessage', payload),
   summarizeToMemory: (payload) => ipcRenderer.invoke('conversations:summarizeToMemory', payload),
+  updateMessage: (payload) => ipcRenderer.invoke('conversations:updateMessage', payload),
+  deleteMessage: (payload) => ipcRenderer.invoke('conversations:deleteMessage', payload),
 
   // Memory
   listMemory: () => ipcRenderer.invoke('memory:list'),
