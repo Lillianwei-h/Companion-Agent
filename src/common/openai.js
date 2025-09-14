@@ -1,3 +1,5 @@
+const fs = require('fs');
+
 function safeBase(baseUrl) {
   if (!baseUrl) return 'https://api.openai.com';
   return baseUrl.replace(/\/$/, '');
@@ -72,6 +74,71 @@ async function geminiChatSend({ settings, history, message }) {
   return content;
 }
 
+async function geminiGenerateWithParts({ settings, parts }) {
+  let GoogleGenAI;
+  try {
+    const lib = require('@google/genai');
+    GoogleGenAI = lib.GoogleGenAI || lib;
+  } catch (e) {
+    throw new Error('Gemini SDK 未安装。请执行: npm i @google/genai');
+  }
+  const apiKey = settings?.api?.apiKey;
+  if (!apiKey) throw new Error('缺少 Gemini API Key');
+  const ai = new GoogleGenAI({ apiKey });
+  const model = settings?.api?.model || 'gemini-2.5-flash';
+  const safetySettings = [
+    { category: 'HARM_CATEGORY_HARASSMENT', threshold: 'BLOCK_NONE' },
+    { category: 'HARM_CATEGORY_HATE_SPEECH', threshold: 'BLOCK_NONE' },
+    { category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT', threshold: 'BLOCK_NONE' },
+    { category: 'HARM_CATEGORY_DANGEROUS_CONTENT', threshold: 'BLOCK_NONE' },
+    { category: 'HARM_CATEGORY_CIVIC_INTEGRITY', threshold: 'BLOCK_NONE' }
+  ];
+  console.log('Gemini generate parts:', { model, partsCount: (parts || []).length });
+  const resp = await ai.models.generateContent({ model, contents: parts, config: { safetySettings } });
+  console.log('Gemini response (parts):', resp);
+  const content = (resp && (resp.text || resp.output_text || '').toString().trim()) || '';
+  return content;
+}
+
+function detectMimeFromPath(p) {
+  try {
+    const lower = String(p || '').toLowerCase();
+    if (lower.endsWith('.png')) return 'image/png';
+    if (lower.endsWith('.jpg') || lower.endsWith('.jpeg')) return 'image/jpeg';
+    if (lower.endsWith('.gif')) return 'image/gif';
+    if (lower.endsWith('.webp')) return 'image/webp';
+    if (lower.endsWith('.bmp')) return 'image/bmp';
+    return 'application/octet-stream';
+  } catch { return 'application/octet-stream'; }
+}
+
+async function callVision({ settings, conversation, memory, imagePath, imageMime, userText }) {
+  if (!isGeminiBase(settings?.api?.baseUrl)) {
+    throw new Error('当前 API Base 非 Gemini，暂不支持图片发送');
+  }
+  if (!imagePath) throw new Error('缺少图片路径');
+  const mime = imageMime || detectMimeFromPath(imagePath);
+  const b64 = fs.readFileSync(imagePath, { encoding: 'base64' });
+  const persona = settings?.persona || '';
+  const systemPrompt = buildSystemPrompt(persona, memory);
+  const limit = Math.max(1, Math.min(500, Number(settings?.api?.historyMessages ?? 25)));
+  const msgs = pickRecentMessages(conversation.messages, limit);
+  const names = { user: (settings?.ui?.names?.user || 'User'), model: (settings?.ui?.names?.model || 'You') };
+  let context = `SYSTEM:\n${systemPrompt}\n[以下是近期对话]\n`;
+  for (const m of msgs) {
+    const label = m.role === 'assistant' ? (names.model + ':') : (names.user + ':');
+    const ts = m.timestamp ? `[${formatTs(m.timestamp)}] ` : '';
+    context += `${label} ${ts}${m.content || ''}\n`;
+  }
+  context += '\n[对话结束]\n请参考以上背景信息，结合图片进行回答。';
+  const parts = [
+    { text: context },
+    { inlineData: { mimeType: mime, data: b64 } },
+    { text: (userText && userText.trim()) ? userText.trim() : '请描述这张图片。' },
+  ];
+  return await geminiGenerateWithParts({ settings, parts });
+}
+
 function formatTs(ts) {
   try { return new Date(ts).toLocaleString(); } catch { return ''; }
 }
@@ -95,7 +162,7 @@ async function callChat({ settings, conversation, memory }) {
       { role: 'user', parts: [{ text: `SYSTEM:\n${systemPrompt}` }] },
       ...msgs.map(toGeminiHistoryItem),
     ];
-    const prompt = latest?.role === 'user' ? '' : '[请继续回复消息]';
+    const prompt = latest?.role === 'user' ? '[请继续回复消息]' : '[请继续你的上一条消息]';
     return await geminiChatSend({ settings, history, message: prompt });
   } else {
     const names = { user: (settings?.ui?.names?.user || 'User'), model: (settings?.ui?.names?.model || 'You') };
@@ -245,4 +312,4 @@ async function testApi({ settings }) {
   }
 }
 
-module.exports = { callChat, proactiveCheck, summarizeConversation, testApi, initialGreeting };
+module.exports = { callChat, proactiveCheck, summarizeConversation, testApi, initialGreeting, callVision };

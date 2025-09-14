@@ -25,6 +25,7 @@ contextBridge.exposeInMainWorld('api', {
 
   // Dialogs
   pickAvatar: () => ipcRenderer.invoke('dialog:pickAvatar'),
+  pickImage: () => ipcRenderer.invoke('dialog:pickImage'),
 
   // Events
   onConversationsUpdated: (cb) => {

@@ -5,6 +5,7 @@ const state = {
   memory: { items: [] },
   ui: {
     sending: false,
+    attachment: null, // { path, mime }
   },
 };
 
@@ -38,6 +39,8 @@ const elLogsRefresh = document.getElementById('btn-logs-refresh');
 const elLogsClear = document.getElementById('btn-logs-clear');
 const elChat = document.querySelector('.chat');
 const elChatResizer = document.getElementById('chat-resize');
+const elAttachBtn = document.getElementById('btn-attach-image');
+const elComposerAttachment = document.getElementById('composer-attachment');
 
 const elPersona = document.getElementById('persona');
 const elApiBase = document.getElementById('api-base');
@@ -319,7 +322,15 @@ function renderMessages() {
     wrap.className = 'bubble-wrap';
     const bubble = document.createElement('div');
     bubble.className = 'bubble';
-    bubble.textContent = msg.content;
+    bubble.textContent = msg.content || '';
+    // Optional image content
+    if (msg.imagePath) {
+      const pic = document.createElement('img');
+      pic.className = 'msg-image';
+      pic.src = 'file://' + msg.imagePath;
+      pic.alt = 'image';
+      wrap.appendChild(pic);
+    }
     const time = document.createElement('div');
     time.className = 'timestamp';
     time.textContent = formatTime(msg.timestamp);
@@ -393,7 +404,9 @@ function formatTime(ts) {
 
 async function onSend() {
   const text = elInput.value.trim();
+  const attach = state.ui.attachment;
   if (state.ui.sending) return;
+  if (!text && !attach) return; // nothing to send
   state.ui.sending = true;
   elSend.disabled = true;
   // Clear input immediately and keep focus
@@ -404,7 +417,9 @@ async function onSend() {
   // Show typing indicator and placeholder
   startTypingPlaceholder();
   try {
-    await window.api.sendMessage({ conversationId: state.currentId, userText: text });
+    const payload = { conversationId: state.currentId, userText: text };
+    if (attach?.path) { payload.imagePath = attach.path; if (attach.mime) payload.imageMime = attach.mime; }
+    await window.api.sendMessage(payload);
     state.conversationsStore = await window.api.listConversations();
     stopTypingPlaceholder();
     renderMessages();
@@ -417,6 +432,7 @@ async function onSend() {
   } finally {
     state.ui.sending = false;
     elSend.disabled = false;
+    clearAttachment();
   }
 }
 
@@ -845,6 +861,62 @@ elVibrancySidebarStrength?.addEventListener('input', () => {
 });
 
 init();
+
+// Attachments handling
+function detectMimeFromPath(p) {
+  const lower = String(p || '').toLowerCase();
+  if (lower.endsWith('.png')) return 'image/png';
+  if (lower.endsWith('.jpg') || lower.endsWith('.jpeg')) return 'image/jpeg';
+  if (lower.endsWith('.gif')) return 'image/gif';
+  if (lower.endsWith('.webp')) return 'image/webp';
+  if (lower.endsWith('.bmp')) return 'image/bmp';
+  return '';
+}
+
+function renderAttachment() {
+  if (!elComposerAttachment) return;
+  const a = state.ui.attachment;
+  if (!a?.path) {
+    elComposerAttachment.classList.add('hidden');
+    elComposerAttachment.innerHTML = '';
+    return;
+  }
+  const url = 'file://' + a.path;
+  elComposerAttachment.classList.remove('hidden');
+  elComposerAttachment.innerHTML = '';
+  const img = document.createElement('img');
+  img.src = url;
+  const meta = document.createElement('div');
+  meta.className = 'meta';
+  meta.innerHTML = `<div>将发送图片</div><div class="muted">${a.mime || ''}</div>`;
+  const actions = document.createElement('div');
+  actions.className = 'actions';
+  const btn = document.createElement('button');
+  btn.textContent = '移除';
+  btn.addEventListener('click', clearAttachment);
+  actions.appendChild(btn);
+  elComposerAttachment.appendChild(img);
+  elComposerAttachment.appendChild(meta);
+  elComposerAttachment.appendChild(actions);
+}
+
+function clearAttachment() {
+  state.ui.attachment = null;
+  renderAttachment();
+}
+
+async function onPickImage() {
+  try {
+    const file = await window.api.pickImage();
+    if (!file) return;
+    state.ui.attachment = { path: file, mime: detectMimeFromPath(file) };
+    renderAttachment();
+  } catch (e) {
+    alert('选择图片失败：' + e.message);
+  }
+}
+
+elAttachBtn?.addEventListener('click', onPickImage);
 
 // Proactive countdown in settings
 function startProactiveCountdown() {

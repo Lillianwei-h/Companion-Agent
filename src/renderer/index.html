@@ -46,8 +46,14 @@
         <div id="messages" class="messages"></div>
         <div id="chat-resize" class="chat-resizer" title="拖动调整输入区高度"></div>
         <div class="composer">
-          <textarea id="input" rows="4" placeholder="输入内容，按发送..."></textarea>
-          <button id="btn-send" class="primary">发送</button>
+          <div id="composer-attachment" class="attachment hidden"></div>
+          <div class="composer-row">
+            <textarea id="input" rows="4" placeholder="输入内容，按发送..."></textarea>
+            <div class="composer-actions">
+              <button id="btn-attach-image" title="添加图片">📷 图片</button>
+              <button id="btn-send" class="primary">发送</button>
+            </div>
+          </div>
         </div>
       </main>
     </div>

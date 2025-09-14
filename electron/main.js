@@ -2,7 +2,7 @@ const { app, BrowserWindow, ipcMain, Notification, dialog } = require('electron'
 const path = require('path');
 const fs = require('fs');
 const { ensureStores, Stores } = require('../src/common/persist');
-const { callChat, proactiveCheck, summarizeConversation, testApi, initialGreeting } = require('../src/common/openai');
+const { callChat, callVision, proactiveCheck, summarizeConversation, testApi, initialGreeting } = require('../src/common/openai');
 
 let mainWindow;
 let proactiveTimer = null;
@@ -309,7 +309,9 @@ ipcMain.handle('memory:delete', async (_evt, id) => {
   return mem;
 });
 
-ipcMain.handle('model:sendMessage', async (_evt, { conversationId, userText }) => {
+ipcMain.handle('model:sendMessage', async (_evt, payload) => {
+  const { conversationId, userText, imagePath, imageMime } = payload || {};
+  // Extended to support optional imagePath/imageMime for Gemini
   const settings = Stores.settings.read();
   const convStore = Stores.conversations.read();
   const conv = convStore.conversations.find(c => c.id === conversationId);
@@ -317,8 +319,9 @@ ipcMain.handle('model:sendMessage', async (_evt, { conversationId, userText }) =
 
   // Append user message only if non-empty
   const trimmed = (userText || '').trim();
-  if (trimmed) {
+  if (trimmed || imagePath) {
     const userMsg = { id: `msg_${Date.now()}`, role: 'user', content: trimmed, timestamp: new Date().toISOString() };
+    if (imagePath) { userMsg.imagePath = imagePath; if (imageMime) userMsg.imageMime = imageMime; }
     conv.messages.push(userMsg);
     Stores.conversations.write(convStore);
     // User replied: restart proactive interval countdown
@@ -326,7 +329,13 @@ ipcMain.handle('model:sendMessage', async (_evt, { conversationId, userText }) =
   }
 
   const memory = Stores.memory.read();
-  const reply = await callChat({ settings, conversation: conv, memory });
+  let reply;
+  if (imagePath && String(settings?.api?.baseUrl || '').includes('generativelanguage.googleapis.com')) {
+    // Prefer Gemini vision when baseUrl is Gemini
+    reply = await callVision({ settings, conversation: conv, memory, imagePath, imageMime, userText: trimmed });
+  } else {
+    reply = await callChat({ settings, conversation: conv, memory });
+  }
   const assistantMsg = { id: `msg_${Date.now()+1}`, role: 'assistant', content: reply, timestamp: new Date().toISOString() };
   conv.messages.push(assistantMsg);
   Stores.conversations.write(convStore);
@@ -360,6 +369,18 @@ ipcMain.handle('dialog:pickAvatar', async () => {
     properties: ['openFile'],
     filters: [
       { name: 'Images', extensions: ['png', 'jpg', 'jpeg', 'gif', 'webp'] },
+    ],
+  });
+  if (res.canceled || !res.filePaths?.[0]) return null;
+  return res.filePaths[0];
+});
+
+ipcMain.handle('dialog:pickImage', async () => {
+  const res = await dialog.showOpenDialog(mainWindow, {
+    title: '选择要发送的图片',
+    properties: ['openFile'],
+    filters: [
+      { name: 'Images', extensions: ['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp'] },
     ],
   });
   if (res.canceled || !res.filePaths?.[0]) return null;
