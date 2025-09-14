@@ -16,7 +16,7 @@ function isGeminiBase(baseUrl) {
 function buildSystemPrompt(persona, memory) {
   const memItems = (memory?.items || []).slice(-5);
   const memText = memItems.length
-    ? `\n\n【你的记忆】\n${memItems.map(i => `- ${i.title}: \n${i.content}`).join('\n')}\n[结束记忆]\n[以下是对话内容]\n`
+    ? `\n\n[以下是你的记忆]\n注意：记忆是你作为第一人称记录的\n${memItems.map(i => `- ${i.title}: \n${i.content}`).join('\n')}\n[结束记忆]\n\n[以下是对话内容]\n`
     : '';
   return `${persona || ''}${memText}`;
 }
@@ -64,10 +64,7 @@ async function geminiChatSend({ settings, history, message }) {
     const label = historyPart.role === 'model' ? (names.model + ':') : (names.user + ':');
     text = text + `${label} ${historyPart.parts.map(p => p.text).join(' ')}\n`;
   }
-  if (message != "") {
-    text = text + ((names.user + ': ') + message) ;
-  }
-  text = text + `[对话内容结束]\n注意：你回复时不需要带上姓名和时间戳。只要回复你说的话即可。\n`;
+  text = text + ('[对话内容结束]\nNote: ') + message + `\n你回复时不需要带上姓名和时间戳。只要回复你说的话即可。\n`;
   console.log('Gemini generate text:', { model, text });
   const resp = await ai.models.generateContent({ model, contents: text, config: { safetySettings: safetySettings } });
   console.log('Gemini response:', resp);
@@ -126,7 +123,7 @@ async function callChat({ settings, conversation, memory }) {
 async function initialGreeting({ settings, memory }) {
   const persona = settings?.persona || '';
   const systemPrompt = buildSystemPrompt(persona, memory);
-  const greet = '请你向我发送一条打招呼的信息';
+  const greet = `你需要向${settings?.ui?.names?.user || 'User'}发送一条打招呼的信息`;
   if (isGeminiBase(settings?.api?.baseUrl)) {
     const history = [ { role: 'user', parts: [{ text: `SYSTEM:\n${systemPrompt}` }] } ];
     return await geminiChatSend({ settings, history, message: greet });
@@ -159,7 +156,12 @@ async function proactiveCheck({ settings, conversation, memory, now }) {
       { role: 'user', parts: [{ text: `SYSTEM:\n${systemPrompt}` }] },
       ...recent.map(toGeminiHistoryItem),
     ];
-    const instruction = `现在的时间是 ${typeof now === 'string' ? now : now.toLocaleString()} 如果你发现我一段时间没有回复你，你要主动给我发消息。如果你想主动联系我，也可以直接给我发消息。如果你决定不发信息，请回复 SKIP；若需要，请以 SEND: <消息> 格式输出。`;
+    let instruction = '';
+    if (length(history) <= 2) {
+      instruction = `[提醒] 现在的时间是 ${typeof now === 'string' ? now : now.toLocaleString()} 如果你发现${settings?.ui?.names?.user || 'User'}一段时间没有回复你，你要主动给${settings?.ui?.names?.user || 'User'}发消息。如果你想主动联系${settings?.ui?.names?.user || 'User'}，也可以直接给${settings?.ui?.names?.user || 'User'}发消息。如果你决定不发信息，请回复 SKIP；若需要，请以 SEND: <消息> 格式输出。`;
+    } else {
+      instruction = `[提醒] 现在的时间是 ${typeof now === 'string' ? now : now.toLocaleString()} 。如果你想主动联系${settings?.ui?.names?.user || 'User'}，也可以直接给${settings?.ui?.names?.user || 'User'}发消息。如果你决定不发信息，请回复 SKIP；若需要，请以 SEND: <消息> 格式输出。`;
+    }
     content = await geminiChatSend({ settings, history, message: instruction });
   } else {
     const names = { user: (settings?.ui?.names?.user || 'User'), model: (settings?.ui?.names?.model || 'You') };
@@ -194,7 +196,7 @@ async function proactiveCheck({ settings, conversation, memory, now }) {
 }
 
 async function summarizeConversation({ settings, conversation }) {
-  const systemPrompt = '请将以下对话要点总结为简洁的记忆条目，突出人物偏好、性格、计划、提醒点、长期目标或高频提及的信息，输出中文，尽量简洁。记忆条目以' + settings?.ui?.names?.model || '你' + '作为第一人称来写。记忆中的“我”代表' + settings?.ui?.names?.model || '你' + '”，记忆中的“你”代表' + settings?.ui?.names?.user || '用户' + '。';
+  const systemPrompt = '请将以上对话要点总结为简洁的记忆条目，突出人物偏好、性格、计划、提醒点、长期目标或高频提及的信息，输出中文，尽量简洁。记忆条目以' + settings?.ui?.names?.model || '你' + '作为第一人称来写。记忆中的“我”代表' + settings?.ui?.names?.model || '你' + '”，记忆中的“你”代表' + settings?.ui?.names?.user || '用户' + '。';
   const limit = Math.max(1, Math.min(1000, Number(settings?.api?.summaryHistoryMessages ?? 100)));
   if (isGeminiBase(settings?.api?.baseUrl)) {
     const recent = pickRecentMessages(conversation.messages, limit);

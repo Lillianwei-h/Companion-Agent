@@ -58,6 +58,7 @@ function defaultSettings() {
       currentConversationId: '',
       listOrderMode: 'auto', // 'auto' | 'manual'
       conversationOrder: [],
+      proactiveConversationId: '',
       vibrancy: {
         enabled: true,
         strength: 0.65, // 0..1

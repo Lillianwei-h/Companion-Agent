@@ -10,6 +10,8 @@
   --muted: #a3a7b7;
   --accent: #6c9ef8;
   --accent-2: #3f7bf0;
+  /* Keep user bubble consistent across themes */
+  --user-bubble-bg: #2f6fe4;
   --danger: #ff6b6b;
   --border: rgba(255,255,255,0.12);
   --field-bg: rgba(255,255,255,0.08);
@@ -43,6 +45,9 @@ body { background: var(--bg); color: var(--text); font-family: ui-sans-serif, sy
 .conversation-item .rename:hover { background: var(--panel-2); color: var(--text); }
 .conversation-item .delete { background: transparent; border: none; color: var(--muted); padding: 4px 6px; border-radius: 6px; cursor: pointer; }
 .conversation-item .delete:hover { background: var(--panel-2); color: var(--danger); }
+.conversation-item .proactive { background: transparent; border: none; color: var(--muted); padding: 4px 6px; border-radius: 6px; cursor: pointer; }
+.conversation-item .proactive.active { color: var(--accent); }
+.conversation-item .proactive:hover { background: var(--panel-2); }
 .conversation-item input.title-edit { width: 100%; background: var(--field-bg); color: var(--text); border: 1px solid var(--field-border); border-radius: 6px; padding: 6px 8px; backdrop-filter: blur(6px) saturate(120%); -webkit-backdrop-filter: blur(6px) saturate(120%); }
 .chat-title-edit { background: var(--field-bg); color: var(--text); border: 1px solid var(--field-border); border-radius: 6px; padding: 6px 8px; font: inherit; min-width: 220px; backdrop-filter: blur(6px) saturate(120%); -webkit-backdrop-filter: blur(6px) saturate(120%); }
 .conversation-item:hover { background: var(--panel-2); }
@@ -76,7 +81,7 @@ label.small { font-size: 12px; }
 #app.sidebar-hidden .sidebar-toggle { left: 0; transform: translate(50%, -50%); }
 .avatar { width: 36px; height: 36px; border-radius: 50%; background: #2a2f3d; object-fit: cover; }
 .bubble { max-width: 100%; padding: 10px 12px; border-radius: 12px; line-height: 1.4; white-space: pre-wrap; overflow-wrap: anywhere; word-break: normal; }
-.message.user .bubble { background: var(--accent); color: #fff; border-bottom-right-radius: 4px; }
+.message.user .bubble { background: var(--user-bubble-bg); color: #fff; border-bottom-right-radius: 4px; }
 .message.assistant .bubble { background: var(--panel); border: 1px solid var(--border); border-bottom-left-radius: 4px; }
 .message .msg-actions { position: absolute; top: -8px; right: -8px; display: flex; gap: 6px; opacity: 0; transition: opacity .15s ease; align-items: center; z-index: 3; background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 2px 4px; }
 .bubble-wrap:hover .msg-actions { opacity: 1; }
@@ -100,9 +105,9 @@ button:disabled { opacity: 0.6; cursor: not-allowed; }
 /* Ensure readable text on solid action buttons in light/dark */
 button.primary, button.danger { color: #fff; }
 
-.modal { position: fixed; inset: 0; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; }
+.modal { position: fixed; inset: 0; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 2000; }
 .modal.hidden { display: none; }
-.modal-content { width: 720px; max-width: 92vw; max-height: 92vh; background: var(--panel); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; display: flex; flex-direction: column; backdrop-filter: blur(16px) saturate(120%); -webkit-backdrop-filter: blur(16px) saturate(120%); }
+.modal-content { width: 720px; max-width: 92vw; max-height: 92vh; background: var(--panel); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; display: flex; flex-direction: column; backdrop-filter: blur(16px) saturate(120%); -webkit-backdrop-filter: blur(16px) saturate(120%); position: relative; z-index: 2100; }
 .modal-content.large { width: 960px; }
 .modal-header, .modal-footer { padding: 12px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; flex: 0 0 auto; }
 .modal-footer { border-top: 1px solid var(--border); border-bottom: none; }

@@ -80,15 +80,9 @@
               </div>
             </div>
             <div>
-              <h3>通知与主动联系</h3>
-              <label class="inline">启用主动联系 <input id="proactive-enabled" type="checkbox" /></label>
-              <label>间隔（分钟） <input id="proactive-interval" type="number" min="1" max="240" /></label>
-              <label class="inline">新消息显示系统通知 <input id="notif-proactive" type="checkbox" /></label>
-              <div style="margin-top:8px; display:flex; gap:8px; align-items:center; flex-wrap: wrap;">
-                <button id="btn-test-notif">发送测试通知</button>
-                <button id="btn-proactive-once">立即检查一次</button>
-                <span id="proactive-status" class="muted"></span>
-              </div>
+              <h3>称呼</h3>
+              <label>用户称呼 <input id="name-user" type="text" placeholder="我 / User" /></label>
+              <label>助手称呼 <input id="name-model" type="text" placeholder="小助手 / You" /></label>
               <h3>头像</h3>
               <div class="avatar-row">
                 <div>
@@ -102,14 +96,21 @@
                   <button id="pick-avatar-agent">选择图片</button>
                 </div>
               </div>
+              <h3>通知与主动联系</h3>
+              <label class="inline">启用主动联系 <input id="proactive-enabled" type="checkbox" /></label>
+              <label>间隔（分钟） <input id="proactive-interval" type="number" min="1" max="240" /></label>
+              <label class="inline">新消息显示系统通知 <input id="notif-proactive" type="checkbox" /></label>
+              <div style="margin-top:8px; display:flex; gap:8px; align-items:center; flex-wrap: wrap;">
+                <button id="btn-test-notif">发送测试通知</button>
+                <button id="btn-proactive-once">立即检查一次</button>
+                <span id="proactive-status" class="muted"></span>
+              </div>
               <h3>外观</h3>
               <label class="inline">启用毛玻璃（macOS） <input id="vibrancy-enabled" type="checkbox" /></label>
               <label>半透明强度 <input id="vibrancy-strength" type="range" min="0" max="100" step="5" /></label>
               <label>侧栏半透明强度 <input id="vibrancy-sidebar-strength" type="range" min="0" max="100" step="5" /></label>
               <div class="muted">提示：较高强度更透明。轻度可读性更强。</div>
-              <h3>称呼</h3>
-              <label>用户称呼 <input id="name-user" type="text" placeholder="我 / User" /></label>
-              <label>助手称呼 <input id="name-model" type="text" placeholder="小助手 / You" /></label>
+              
             </div>
           </section>
           <section>

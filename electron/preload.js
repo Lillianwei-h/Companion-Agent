@@ -38,6 +38,7 @@ contextBridge.exposeInMainWorld('api', {
   // Debug tools
   testNotify: () => ipcRenderer.invoke('debug:notify'),
   proactiveOnce: () => ipcRenderer.invoke('proactive:once'),
+  proactiveStatus: () => ipcRenderer.invoke('proactive:status'),
   listLogs: (limit) => ipcRenderer.invoke('logs:list', limit),
   clearLogs: () => ipcRenderer.invoke('logs:clear'),
 

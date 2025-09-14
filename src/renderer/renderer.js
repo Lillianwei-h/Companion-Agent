@@ -16,7 +16,7 @@ const elSend = document.getElementById('btn-send');
 let elChatTitle = document.getElementById('chat-title');
 const elNewChat = document.getElementById('btn-new-chat');
 const elSummarize = document.getElementById('btn-summarize');
-const elToggleSidebar = document.getElementById('btn-toggle-sidebar');
+// Legacy header toggle removed; using boundary handle instead
 const elExportMenuBtn = document.getElementById('btn-export-menu');
 const elExportDropdown = document.getElementById('export-dropdown');
 const elExportIncludeTs = document.getElementById('export-include-ts');
@@ -84,10 +84,19 @@ function escapeHtml(s) {
 
 async function init() {
   state.settings = await window.api.getSettings();
+  // Force auto ordering if manual was previously enabled
+  if (state.settings?.ui?.listOrderMode === 'manual') {
+    try {
+      const ui = state.settings.ui || {};
+      state.settings = await window.api.updateSettings({ ui: { ...ui, listOrderMode: 'auto', conversationOrder: [] } });
+    } catch {}
+  }
   state.conversationsStore = await window.api.listConversations();
   if (!state.conversationsStore.conversations.length) {
     const conv = await window.api.createConversation();
     state.conversationsStore = await window.api.listConversations();
+    // Refresh settings to reflect any auto-pinning performed in main process
+    try { state.settings = await window.api.getSettings(); } catch {}
     state.currentId = conv.id;
   } else {
     // Try to restore last selected from settings
@@ -111,6 +120,8 @@ async function init() {
   }
   // Apply initial translucency from settings
   applyTranslucencyFromSettings();
+  // Start proactive countdown updater
+  startProactiveCountdown();
   // Reapply when system theme changes
   try {
     const mm = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)');
@@ -119,6 +130,8 @@ async function init() {
 
   window.api.onConversationsUpdated(async () => {
     state.conversationsStore = await window.api.listConversations();
+    // Keep local settings in sync (e.g., auto-pin updates from main)
+    try { state.settings = await window.api.getSettings(); } catch {}
     renderConversations();
     renderMessages();
   });
@@ -163,11 +176,16 @@ function renderConversations() {
   list.forEach(conv => {
     const div = document.createElement('div');
     div.className = 'conversation-item' + (conv.id === state.currentId ? ' active' : '');
-    div.setAttribute('draggable', 'true');
+    // Drag sorting disabled: keep list auto-ordered by last activity
     div.dataset.id = conv.id;
     const titleEl = document.createElement('div');
     titleEl.className = 'conversation-title';
     titleEl.textContent = conv.title;
+    const proactiveBtn = document.createElement('button');
+    const pinned = state.settings?.ui?.proactiveConversationId === conv.id;
+    proactiveBtn.className = 'proactive' + (pinned ? ' active' : '');
+    proactiveBtn.title = pinned ? '已设为主动联系上下文，点击取消' : '设为主动联系上下文';
+    proactiveBtn.textContent = pinned ? '★' : '☆';
     const renameBtn = document.createElement('button');
     renameBtn.className = 'rename';
     renameBtn.title = '重命名';
@@ -186,23 +204,17 @@ function renderConversations() {
       e.preventDefault();
       startInlineRename(div, titleEl, conv);
     };
-    div.addEventListener('dragstart', (e) => {
-      e.dataTransfer.effectAllowed = 'move';
-      e.dataTransfer.setData('text/plain', conv.id);
-    });
-    div.addEventListener('dragover', (e) => {
-      e.preventDefault();
-      e.dataTransfer.dropEffect = 'move';
-      div.classList.add('drag-over');
-    });
-    div.addEventListener('dragleave', () => div.classList.remove('drag-over'));
-    div.addEventListener('drop', async (e) => {
-      e.preventDefault();
-      div.classList.remove('drag-over');
-      const dragId = e.dataTransfer.getData('text/plain');
-      const targetId = conv.id;
-      if (!dragId || dragId === targetId) return;
-      await applyManualReorder(dragId, targetId);
+    proactiveBtn.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      try {
+        const ui = state.settings?.ui || {};
+        const nextId = (state.settings?.ui?.proactiveConversationId === conv.id) ? '' : conv.id;
+        const next = await window.api.updateSettings({ ui: { ...ui, proactiveConversationId: nextId } });
+        state.settings = next;
+        renderConversations();
+      } catch (err) {
+        alert('更新主动联系上下文失败：' + (err?.message || err));
+      }
     });
     renameBtn.addEventListener('click', async (e) => {
       e.stopPropagation();
@@ -212,22 +224,13 @@ function renderConversations() {
       e.stopPropagation();
       await deleteConversationById(conv.id);
     });
+    div.appendChild(proactiveBtn);
     div.appendChild(titleEl);
     div.appendChild(renameBtn);
     div.appendChild(deleteBtn);
     elConversations.appendChild(div);
   });
 
-  // Allow drop at list end (bind once)
-  if (!elConversations._dndBound) {
-    elConversations.addEventListener('dragover', (e) => { e.preventDefault(); });
-    elConversations.addEventListener('drop', async (e) => {
-      const dragId = e.dataTransfer.getData('text/plain');
-      if (!dragId) return;
-      await applyManualReorder(dragId, null); // move to end
-    });
-    elConversations._dndBound = true;
-  }
 }
 
 async function applyManualReorder(dragId, beforeId) {
@@ -266,6 +269,11 @@ async function deleteConversationById(id) {
       const nextOrder = ui.conversationOrder.filter(x => x !== id);
       state.settings = await window.api.updateSettings({ ui: { ...ui, conversationOrder: nextOrder } });
     }
+    // Clear proactive pinned context if it was this conversation
+    if (ui.proactiveConversationId === id) {
+      const freshUi = state.settings?.ui || ui;
+      state.settings = await window.api.updateSettings({ ui: { ...freshUi, proactiveConversationId: '' } });
+    }
     // Reselect a conversation
     const ordered = orderConversations(state.conversationsStore.conversations || []);
     if (ordered.length) {
@@ -275,6 +283,8 @@ async function deleteConversationById(id) {
       // Create a new empty conversation to keep UI stable
       const created = await window.api.createConversation();
       state.conversationsStore = await window.api.listConversations();
+      // Refresh settings to reflect any auto-pinning on creation
+      try { state.settings = await window.api.getSettings(); } catch {}
       state.currentId = created.id;
       window.api.setCurrentConversation(state.currentId).catch(() => {});
     }
@@ -541,15 +551,10 @@ async function onNewChat() {
   try {
     const conv = await window.api.createConversation();
     state.conversationsStore = await window.api.listConversations();
+    // Fetch settings to reflect possible auto-pin
+    try { state.settings = await window.api.getSettings(); } catch {}
     state.currentId = conv.id;
     window.api.setCurrentConversation(state.currentId).catch(() => {});
-    // If manual order is active, put new conversation at the top of the order
-    const ui = state.settings?.ui || {};
-    if (ui.listOrderMode === 'manual') {
-      const existing = Array.isArray(ui.conversationOrder) ? ui.conversationOrder.filter(id => id !== conv.id) : [];
-      const nextOrder = [conv.id, ...existing];
-      state.settings = await window.api.updateSettings({ ui: { ...ui, conversationOrder: nextOrder } });
-    }
     renderConversations();
     renderMessages();
     // Start inline edit on the title to encourage renaming immediately
@@ -840,6 +845,38 @@ elVibrancySidebarStrength?.addEventListener('input', () => {
 });
 
 init();
+
+// Proactive countdown in settings
+function startProactiveCountdown() {
+  try { if (state.ui.proactiveTicker) clearInterval(state.ui.proactiveTicker); } catch {}
+  const tick = async () => {
+    try {
+      const res = await window.api.proactiveStatus();
+      if (!elProactiveStatus) return;
+      if (!res?.ok) { elProactiveStatus.textContent = '状态获取失败'; return; }
+      if (!res.enabled) { elProactiveStatus.textContent = '已关闭'; return; }
+      const now = res.now || Date.now();
+      const nextAt = res.nextAt || 0;
+      if (!nextAt || !res.intervalMs) { elProactiveStatus.textContent = '计时未启动'; return; }
+      const left = Math.max(0, nextAt - now);
+      elProactiveStatus.textContent = '下一次检查：' + formatDuration(left);
+    } catch {
+      if (elProactiveStatus) elProactiveStatus.textContent = '';
+    }
+  };
+  tick();
+  state.ui.proactiveTicker = setInterval(tick, 1000);
+}
+
+function formatDuration(ms) {
+  const total = Math.floor(ms / 1000);
+  const h = Math.floor(total / 3600);
+  const m = Math.floor((total % 3600) / 60);
+  const s = total % 60;
+  const pad = (n) => String(n).padStart(2, '0');
+  if (h > 0) return `${h}:${pad(m)}:${pad(s)}`;
+  return `${m}:${pad(s)}`;
+}
 
 function setupChatResizer() {
   if (!elChat || !elChatResizer) return;

@@ -6,6 +6,8 @@ const { callChat, proactiveCheck, summarizeConversation, testApi, initialGreetin
 
 let mainWindow;
 let proactiveTimer = null;
+let proactiveIntervalMs = 0;
+let proactiveNextAt = 0; // epoch ms for next scheduled proactive tick
 
 function createWindow() {
   const settings = Stores.settings.read() || {};
@@ -66,26 +68,31 @@ function startProactiveLoop() {
   if (proactiveTimer) clearInterval(proactiveTimer);
 
   const settings = Stores.settings.read();
-  if (!settings?.proactive?.enabled) return;
+  if (!settings?.proactive?.enabled) {
+    proactiveIntervalMs = 0;
+    proactiveNextAt = 0;
+    return;
+  }
 
   const minutes = settings.proactive.intervalMinutes || 10;
   const intervalMs = Math.max(1, minutes) * 60 * 1000;
+  proactiveIntervalMs = intervalMs;
+  proactiveNextAt = Date.now() + intervalMs;
 
   proactiveTimer = setInterval(async () => {
     try {
       const settings = Stores.settings.read();
       if (!settings?.proactive?.enabled) return;
 
-      const conversations = Stores.conversations.read();
-      if (!conversations?.conversations?.length) return;
-
-      const selId = settings?.ui?.currentConversationId;
-      if (!selId) return; // Only send for explicitly selected conversation
-      const conv = (conversations.conversations || []).find(c => c.id === selId);
+      const conv = await getProactiveConversation(settings);
       if (!conv) return;
       await maybeSendProactive(conv, settings);
     } catch (err) {
       console.error('Proactive loop error', err);
+    } finally {
+      if (proactiveIntervalMs > 0) {
+        proactiveNextAt = Date.now() + proactiveIntervalMs;
+      }
     }
   }, intervalMs);
 }
@@ -128,7 +135,7 @@ async function maybeSendProactive(conversation, settings) {
       const focused = mainWindow && mainWindow.isFocused();
       if (!focused && settings?.notifications?.onProactive) {
         const notif = new Notification({
-          title: '穆有新消息',
+          title: '来自' + settings?.ui?.names?.model || '穆' + ' 的新消息',
           body: result.message.slice(0, 120),
         });
         notif.show();
@@ -172,6 +179,17 @@ ipcMain.handle('conversations:create', async (_evt, title) => {
   };
   store.conversations.push(conv);
   Stores.conversations.write(store);
+  // If no proactive pinned conversation is set, pin this newly created one
+  try {
+    const s = Stores.settings.read() || {};
+    const ui = { ...(s.ui || {}) };
+    if (!ui.proactiveConversationId) {
+      ui.proactiveConversationId = id;
+      Stores.settings.write({ ...s, ui });
+    }
+  } catch (e) {
+    console.error('auto-pin on create failed', e);
+  }
   // Immediately send a greeting message using only system prompt + memory
   try {
     const settings = Stores.settings.read();
@@ -223,6 +241,11 @@ ipcMain.handle('conversations:appendMessage', async (_evt, { id, message }) => {
     timestamp: new Date().toISOString(),
   });
   Stores.conversations.write(store);
+  // Reset proactive timer when user actively replies
+  try {
+    const isUser = String(message?.role) === 'user' && String(message?.content || '').trim().length > 0;
+    if (isUser) startProactiveLoop();
+  } catch {}
   return conv;
 });
 
@@ -298,6 +321,8 @@ ipcMain.handle('model:sendMessage', async (_evt, { conversationId, userText }) =
     const userMsg = { id: `msg_${Date.now()}`, role: 'user', content: trimmed, timestamp: new Date().toISOString() };
     conv.messages.push(userMsg);
     Stores.conversations.write(convStore);
+    // User replied: restart proactive interval countdown
+    startProactiveLoop();
   }
 
   const memory = Stores.memory.read();
@@ -381,11 +406,8 @@ ipcMain.handle('proactive:once', async () => {
     }
     const now = new Date().toLocaleString();
     const memory = Stores.memory.read();
-    const store = Stores.conversations.read();
     let sent = 0;
-    const selId = settings?.ui?.currentConversationId;
-    if (!selId) return { ok: true, checked: 0, sent: 0 };
-    const conv = (store.conversations || []).find(c => c.id === selId);
+    const conv = await getProactiveConversation(settings);
     if (!conv) return { ok: true, checked: 0, sent: 0 };
     const result = await proactiveCheck({ settings, conversation: conv, memory, now });
     appendLog({
@@ -396,15 +418,19 @@ ipcMain.handle('proactive:once', async () => {
       raw: result?.raw || '',
     });
     if (result?.action === 'SEND' && result?.message) {
-      conv.messages.push({
-        id: `msg_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
-        role: 'assistant',
-        content: result.message,
-        timestamp: new Date().toISOString(),
-      });
-      sent++;
-      Stores.conversations.write(store);
-      mainWindow?.webContents.send('data:conversations-updated');
+      const st = Stores.conversations.read();
+      const c = st.conversations.find(x => x.id === conv.id);
+      if (c) {
+        c.messages.push({
+          id: `msg_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+          role: 'assistant',
+          content: result.message,
+          timestamp: new Date().toISOString(),
+        });
+        sent++;
+        Stores.conversations.write(st);
+        mainWindow?.webContents.send('data:conversations-updated');
+      }
     }
     const focused = mainWindow && mainWindow.isFocused();
     const s = settings?.notifications?.onProactive !== false; // default true
@@ -418,6 +444,25 @@ ipcMain.handle('proactive:once', async () => {
     return { ok: true, checked: conv ? 1 : 0, sent };
   } catch (err) {
     return { ok: false, error: err?.message || String(err) };
+  }
+});
+
+// Proactive status for countdown in settings panel
+ipcMain.handle('proactive:status', async () => {
+  try {
+    const s = Stores.settings.read() || {};
+    const enabled = !!s?.proactive?.enabled;
+    const interval = s?.proactive?.intervalMinutes || 10;
+    return {
+      ok: true,
+      enabled,
+      intervalMinutes: interval,
+      intervalMs: proactiveIntervalMs,
+      nextAt: proactiveNextAt,
+      now: Date.now(),
+    };
+  } catch (e) {
+    return { ok: false, error: e?.message || String(e) };
   }
 });
 
@@ -573,5 +618,54 @@ function filterConversationTimestamps(conv, includeTs = true) {
     return copy;
   } catch {
     return conv;
+  }
+}
+
+async function getProactiveConversation(settings) {
+  try {
+    const store = Stores.conversations.read();
+    const list = store.conversations || [];
+    const pinnedId = settings?.ui?.proactiveConversationId;
+    if (pinnedId) {
+      const pinned = list.find(c => c.id === pinnedId);
+      if (pinned) return pinned;
+    }
+    // Fallback: create a brand new conversation (same as New Chat)
+    const id = `conv_${Date.now()}_${Math.random().toString(36).slice(2,6)}`;
+    const now = new Date();
+    const conv = { id, title: formatStartTime(now), createdAt: now.toISOString(), messages: [] };
+    store.conversations.push(conv);
+    Stores.conversations.write(store);
+    // If nothing is pinned (or pinned was invalid), pin this new one so future proactive messages continue here
+    try {
+      const s = Stores.settings.read() || {};
+      const ui = { ...(s.ui || {}) };
+      if (!ui.proactiveConversationId || ui.proactiveConversationId === pinnedId) {
+        ui.proactiveConversationId = id;
+        Stores.settings.write({ ...s, ui });
+      }
+    } catch (e) {
+      console.error('auto-pin on proactive create failed', e);
+    }
+    // Send initial greeting using only system prompt + memory
+    try {
+      const memory = Stores.memory.read();
+      const text = await initialGreeting({ settings, memory });
+      if (text) {
+        const st2 = Stores.conversations.read();
+        const c = st2.conversations.find(x => x.id === id);
+        if (c) {
+          c.messages.push({ id: `msg_${Date.now()}`, role: 'assistant', content: text, timestamp: new Date().toISOString() });
+          Stores.conversations.write(st2);
+          mainWindow?.webContents.send('data:conversations-updated');
+        }
+      }
+    } catch (e) {
+      console.error('initial greeting (proactive) failed', e);
+    }
+    return conv;
+  } catch (e) {
+    console.error('getProactiveConversation failed', e);
+    return null;
   }
 }
