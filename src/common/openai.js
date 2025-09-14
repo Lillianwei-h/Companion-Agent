@@ -194,7 +194,7 @@ async function proactiveCheck({ settings, conversation, memory, now }) {
 }
 
 async function summarizeConversation({ settings, conversation }) {
-  const systemPrompt = '请将以下对话要点总结为简洁的记忆条目，突出人物偏好、性格、计划、提醒点、长期目标或高频提及的信息，输出中文，尽量简洁。';
+  const systemPrompt = '请将以下对话要点总结为简洁的记忆条目，突出人物偏好、性格、计划、提醒点、长期目标或高频提及的信息，输出中文，尽量简洁。记忆条目以' + settings?.ui?.names?.model || '你' + '作为第一人称来写。记忆中的“我”代表' + settings?.ui?.names?.model || '你' + '”，记忆中的“你”代表' + settings?.ui?.names?.user || '用户' + '。';
   const limit = Math.max(1, Math.min(1000, Number(settings?.api?.summaryHistoryMessages ?? 100)));
   if (isGeminiBase(settings?.api?.baseUrl)) {
     const recent = pickRecentMessages(conversation.messages, limit);

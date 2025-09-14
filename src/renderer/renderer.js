@@ -21,6 +21,7 @@ const elExportMenuBtn = document.getElementById('btn-export-menu');
 const elExportDropdown = document.getElementById('export-dropdown');
 const elExportIncludeTs = document.getElementById('export-include-ts');
 const elDeleteCurrent = document.getElementById('btn-delete-current');
+const elSidebarToggle = document.getElementById('btn-sidebar-toggle');
 
 const elSettingsModal = document.getElementById('settings-modal');
 const elOpenSettings = document.getElementById('btn-settings');
@@ -121,6 +122,9 @@ async function init() {
     renderConversations();
     renderMessages();
   });
+
+  // Initialize sidebar toggle arrow according to current state
+  updateSidebarToggleLabel();
 }
 
 function renderAll() {
@@ -740,11 +744,7 @@ elInput.addEventListener('keydown', (e) => {
 });
 elNewChat.addEventListener('click', onNewChat);
 elSummarize.addEventListener('click', onSummarize);
-elToggleSidebar?.addEventListener('click', () => {
-  const app = document.getElementById('app');
-  app.classList.toggle('sidebar-hidden');
-  elToggleSidebar.textContent = app.classList.contains('sidebar-hidden') ? '显示会话列表' : '隐藏会话列表';
-});
+elSidebarToggle?.addEventListener('click', () => { toggleSidebar(); });
 elExportMenuBtn?.addEventListener('click', (e) => {
   e.stopPropagation();
   toggleExportMenu();
@@ -895,6 +895,21 @@ function applyTranslucency(strength, sidebarStrength) {
   const sMap = (min, max) => (min + (max - min) * (sidebarStrength ?? 0.35)).toFixed(2);
   const sAlpha = dark ? sMap(0.30, 0.60) : sMap(0.15, 0.50);
   root.style.setProperty('--sidebar-panel', `rgba(${rgb.panel}, ${sAlpha})`);
+}
+
+function toggleSidebar() {
+  const app = document.getElementById('app');
+  app.classList.toggle('sidebar-hidden');
+  updateSidebarToggleLabel();
+}
+
+function updateSidebarToggleLabel() {
+  const app = document.getElementById('app');
+  const hidden = app.classList.contains('sidebar-hidden');
+  if (elSidebarToggle) {
+    elSidebarToggle.textContent = hidden ? '⏵' : '⏴';
+    elSidebarToggle.title = hidden ? '展开会话列表' : '收回会话列表';
+  }
 }
 
 function startInlineRename(container, titleEl, conv) {
