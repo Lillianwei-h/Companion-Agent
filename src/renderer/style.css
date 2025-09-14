@@ -196,3 +196,17 @@ input:focus, textarea:focus { outline: 2px solid var(--accent-2); outline-offset
     --button-hover-bg: #f2f4f7;
   }
 }
+
+/* 右侧按钮始终右上角，不随文本区滚动 */
+.composer-actions {
+  align-self: start;         /* 固定在该列顶部 */
+  position: sticky;          /* 纵向滚动时仍贴顶 */
+  top: 0;
+}
+
+/* 让 textarea 随容器高度变化而完全铺满 */
+.composer textarea {
+  height: 100%;
+  min-height: 80px;
+  resize: none;              /* 统一只用分割条调整高度 */
+}

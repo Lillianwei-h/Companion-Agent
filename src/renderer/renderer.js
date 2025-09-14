@@ -41,6 +41,7 @@ const elChat = document.querySelector('.chat');
 const elChatResizer = document.getElementById('chat-resize');
 const elAttachBtn = document.getElementById('btn-attach-image');
 const elComposerAttachment = document.getElementById('composer-attachment');
+const elComposer = document.querySelector('.composer');
 
 const elPersona = document.getElementById('persona');
 const elApiBase = document.getElementById('api-base');
@@ -117,6 +118,8 @@ async function init() {
     elChat.style.setProperty('--composer-height', '140px');
   }
   setupChatResizer();
+  // Initial autosize for empty input
+  try { autoResizeComposer(); } catch {}
   // Initialize export include timestamp toggle from settings
   if (elExportIncludeTs) {
     elExportIncludeTs.checked = state.settings?.ui?.exportIncludeTimestamp ?? true;
@@ -412,8 +415,10 @@ async function onSend() {
   // Clear input immediately and keep focus
   elInput.value = '';
   elInput.focus();
-  // Optimistically render user message
-  if (text) appendOptimisticUser(text);
+  // Optimistically render user message (with image if any)
+  appendOptimisticUser(text, attach);
+  // Recalculate composer height after clearing input
+  try { autoResizeComposer(); } catch {}
   // Show typing indicator and placeholder
   startTypingPlaceholder();
   try {
@@ -436,7 +441,7 @@ async function onSend() {
   }
 }
 
-function appendOptimisticUser(text) {
+function appendOptimisticUser(text, attachment) {
   const row = document.createElement('div');
   row.className = 'message user';
   const img = document.createElement('img');
@@ -445,13 +450,24 @@ function appendOptimisticUser(text) {
   if (src) img.src = src; else img.alt = '👤';
   const wrap = document.createElement('div');
   wrap.className = 'bubble-wrap';
-  const bubble = document.createElement('div');
-  bubble.className = 'bubble';
-  bubble.textContent = text;
+  // Optional image (optimistic)
+  if (attachment?.path) {
+    const pic = document.createElement('img');
+    pic.className = 'msg-image';
+    pic.src = 'file://' + attachment.path;
+    pic.alt = 'image';
+    wrap.appendChild(pic);
+  }
+  // Text bubble (if any)
+  if (text) {
+    const bubble = document.createElement('div');
+    bubble.className = 'bubble';
+    bubble.textContent = text;
+    wrap.appendChild(bubble);
+  }
   const time = document.createElement('div');
   time.className = 'timestamp';
   time.textContent = formatTime(new Date().toISOString());
-  wrap.appendChild(bubble);
   wrap.appendChild(time);
   row.appendChild(img);
   row.appendChild(wrap);
@@ -763,6 +779,9 @@ elSend.addEventListener('click', onSend);
 elInput.addEventListener('keydown', (e) => {
   if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') onSend();
 });
+// Auto-resize while typing (when not manually resized)
+elInput.addEventListener('input', () => { try { autoResizeComposer(); } catch {} });
+window.addEventListener('resize', () => { try { autoResizeComposer(); } catch {} });
 elNewChat.addEventListener('click', onNewChat);
 elSummarize.addEventListener('click', onSummarize);
 elSidebarToggle?.addEventListener('click', () => { toggleSidebar(); });
@@ -903,6 +922,7 @@ function renderAttachment() {
 function clearAttachment() {
   state.ui.attachment = null;
   renderAttachment();
+  try { autoResizeComposer(); } catch {}
 }
 
 async function onPickImage() {
@@ -911,6 +931,7 @@ async function onPickImage() {
     if (!file) return;
     state.ui.attachment = { path: file, mime: detectMimeFromPath(file) };
     renderAttachment();
+    try { autoResizeComposer(); } catch {}
   } catch (e) {
     alert('选择图片失败：' + e.message);
   }
@@ -972,11 +993,71 @@ function setupChatResizer() {
   }
   elChatResizer.addEventListener('mousedown', (e) => {
     dragging = true;
+    // Mark manual override to pause autosize until reset
+    state.ui.manualComposer = true;
     document.body.style.userSelect = 'none';
     document.body.style.cursor = 'row-resize';
     window.addEventListener('mousemove', onMove);
     window.addEventListener('mouseup', onUp);
   });
+  // Double-click resizer to re-enable autosize
+  elChatResizer.addEventListener('dblclick', () => {
+    state.ui.manualComposer = false;
+    try { autoResizeComposer(); } catch {}
+  });
+}
+
+// Auto-size the composer area to fit input (unless manually resized)
+function autoResizeComposer() {
+  if (!elChat || !elInput || !elComposer) return;
+  // Measure paddings and gaps
+  const compStyle = getComputedStyle(elComposer);
+  const padTop = parseInt(compStyle.paddingTop) || 0;
+  const padBottom = parseInt(compStyle.paddingBottom) || 0;
+  const rowGap = parseInt(compStyle.gap) || 0;
+  const pad = padTop + padBottom;
+  // Measure optional attachment height
+  const attachVisible = elComposerAttachment && !elComposerAttachment.classList.contains('hidden') && elComposerAttachment.childElementCount > 0;
+  const attachH = attachVisible ? (elComposerAttachment.offsetHeight || 0) : 0;
+  // Measure actions height
+  const actions = document.querySelector('.composer-actions');
+  const actionsH = actions ? (actions.offsetHeight || 0) : 0;
+  // Measure text content height
+  const prev = elInput.style.height;
+  // Current composer height from CSS variable (keep if empty input)
+  const cssH = getComputedStyle(elChat).getPropertyValue('--composer-height').trim();
+  const curH = Number((cssH || '140px').replace('px', '')) || 140;
+  const empty = elInput.value.trim().length === 0;
+
+  if (empty) {
+    // Keep current composer height; let textarea fill remaining space
+    const base = curH - pad - (attachH ? (attachH + rowGap) : 0);
+    const avail = Math.max(24, Math.min(420, base));
+    elInput.style.height = `${Math.round(avail)}px`;
+  } else {
+    elInput.style.height = 'auto';
+    const desiredTextH = Math.max(38, Math.min(420, elInput.scrollHeight || 0));
+    if (state.ui.manualComposer) {
+      // Respect manual composer height: fit textarea within available area
+      const base = curH - pad - (attachH ? (attachH + rowGap) : 0);
+      const avail = Math.max(24, Math.min(420, base));
+      const textH = Math.min(desiredTextH, avail);
+      elInput.style.height = `${Math.round(textH)}px`;
+    } else {
+      const rowH = Math.max(desiredTextH, actionsH);
+      let newH = pad + (attachH ? (attachH + rowGap) : 0) + rowH;
+      // Clamp based on chat container height
+      const rect = elChat.getBoundingClientRect();
+      const minH = 80;
+      const maxH = Math.max(120, Math.min(500, rect.height - 160));
+      newH = Math.max(minH, Math.min(maxH, newH));
+      elChat.style.setProperty('--composer-height', `${Math.round(newH)}px`);
+      // Apply explicit textarea height to avoid inner scroll
+      elInput.style.height = `${Math.round(desiredTextH)}px`;
+    }
+  }
+  // Keep scrolled to newest content
+  try { elMessages.scrollTop = elMessages.scrollHeight; } catch {}
 }
 
 function applyTranslucencyFromSettings() {
