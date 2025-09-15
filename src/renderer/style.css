@@ -108,7 +108,7 @@ label.small { font-size: 12px; }
 .attachment .thumb { width: 56px; height: 56px; object-fit: cover; border-radius: 6px; border: 1px solid var(--border); }
 .attachment .file-chip { border: 1px solid var(--border); border-radius: 6px; padding: 6px 8px; font-size: 12px; color: var(--muted); cursor: pointer; }
 
-.msg-image { max-width: 88%; border-radius: 8px; border: 1px solid var(--border); display: block; }
+.msg-image { max-width: 50%; border-radius: 8px; border: 1px solid var(--border); display: block; }
 
 button { background: var(--button-bg); color: var(--button-fg); border: 1px solid var(--button-border); padding: 8px 10px; border-radius: 8px; cursor: pointer; }
 button:hover { background: var(--button-hover-bg); }
@@ -150,8 +150,8 @@ input:focus, textarea:focus { outline: 2px solid var(--accent-2); outline-offset
 .message.assistant .bubble-wrap { align-items: flex-start; }
 
 /* Side-specific bubble widths */
-.message.assistant .bubble { max-width: 88%; }
-.message.user .bubble { max-width: 88%; }
+.message.assistant .bubble { max-width: 85%; }
+.message.user .bubble { max-width: 85%; }
 
 /* Ensure container grows so bubbles can use percentage max-width */
 .message { align-items: flex-start; }
