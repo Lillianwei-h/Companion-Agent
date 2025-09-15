@@ -37,6 +37,18 @@ contextBridge.exposeInMainWorld('api', {
     ipcRenderer.on('data:conversations-updated', cb);
     return () => ipcRenderer.removeListener('data:conversations-updated', cb);
   },
+  onOpenSettings: (cb) => {
+    ipcRenderer.on('ui:openSettings', cb);
+    return () => ipcRenderer.removeListener('ui:openSettings', cb);
+  },
+  onExpandSidebar: (cb) => {
+    ipcRenderer.on('ui:expandSidebar', cb);
+    return () => ipcRenderer.removeListener('ui:expandSidebar', cb);
+  },
+  onToggleSidebar: (cb) => {
+    ipcRenderer.on('ui:toggleSidebar', cb);
+    return () => ipcRenderer.removeListener('ui:toggleSidebar', cb);
+  },
 
   // Diagnostics
   testApi: (settings) => ipcRenderer.invoke('api:test', settings),

@@ -228,3 +228,55 @@ input:focus, textarea:focus { outline: 2px solid var(--accent-2); outline-offset
   min-height: 80px;
   resize: none;              /* 统一只用分割条调整高度 */
 }
+
+/* Avatar crop modal */
+#avatar-crop-modal .modal-content.medium { width: 860px; }
+.crop-container { width: 100%; }
+.crop-stage {
+  position: relative;
+  width: 100%;
+  height: clamp(360px, 60vh, 640px);
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+#avatar-crop-img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain; /* 保持比例完整塞进舞台 */
+  user-select: none;
+  -webkit-user-drag: none;
+  pointer-events: none; /* 事件交由 crop-layer */
+  display: block;
+}
+.crop-layer {
+  position: absolute;
+  inset: 0;
+  cursor: move;
+}
+.crop-rect {
+  position: absolute;
+  border: 2px solid var(--accent);
+  box-shadow: 0 0 0 9999px rgba(0,0,0,0.35); /* 外部加遮罩 */
+  border-radius: 6px;
+}
+.crop-rect .handle {
+  position: absolute;
+  width: 14px;
+  height: 14px;
+  background: var(--accent);
+  border: 2px solid #fff3;
+  border-radius: 50%;
+}
+.crop-rect .handle-nw { left: -8px; top: -8px; cursor: nwse-resize; }
+.crop-rect .handle-ne { right: -8px; top: -8px; cursor: nesw-resize; }
+.crop-rect .handle-sw { left: -8px; bottom: -8px; cursor: nesw-resize; }
+.crop-rect .handle-se { right: -8px; bottom: -8px; cursor: nwse-resize; }
+.crop-rect .handle-n { left: 50%; top: -8px; transform: translateX(-50%); cursor: ns-resize; }
+.crop-rect .handle-s { left: 50%; bottom: -8px; transform: translateX(-50%); cursor: ns-resize; }
+.crop-rect .handle-w { top: 50%; left: -8px; transform: translateY(-50%); cursor: ew-resize; }
+.crop-rect .handle-e { top: 50%; right: -8px; transform: translateY(-50%); cursor: ew-resize; }

@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, Notification, dialog, shell } = require('electron');
+const { app, BrowserWindow, ipcMain, Notification, dialog, shell, Menu } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const { ensureStores, Stores, getStoreRoot, ensureDir } = require('../src/common/persist');
@@ -147,6 +147,9 @@ function createWindow() {
   });
 
   mainWindow.loadFile(path.join(__dirname, '../src/renderer/index.html'));
+
+  // Build and set application menu with Preferences…
+  try { setAppMenu(); } catch (e) { console.error('setAppMenu failed', e); }
 }
 
 app.whenReady().then(async () => {
@@ -163,6 +166,109 @@ app.whenReady().then(async () => {
 app.on('window-all-closed', function () {
   if (process.platform !== 'darwin') app.quit();
 });
+
+function setAppMenu() {
+  const isMac = process.platform === 'darwin';
+  const template = [];
+  if (isMac) {
+    template.push({
+      label: app.name,
+      submenu: [
+        { role: 'about' },
+        { type: 'separator' },
+        {
+          label: 'Preferences…',
+          accelerator: 'CmdOrCtrl+,',
+          click: () => { try { mainWindow?.webContents.send('ui:openSettings'); } catch {} },
+        },
+        { type: 'separator' },
+        { role: 'hide' },
+        { role: 'hideOthers' },
+        { role: 'unhide' },
+        { type: 'separator' },
+        { role: 'quit' },
+      ],
+    });
+  }
+  // File menu (with Preferences on non-mac)
+  template.push({
+    label: 'File',
+    submenu: [
+      ...(!isMac ? [{
+        label: 'Preferences…', accelerator: 'CmdOrCtrl+,', click: () => { try { mainWindow?.webContents.send('ui:openSettings'); } catch {} },
+      }, { type: 'separator' }] : []),
+      isMac ? { role: 'close' } : { role: 'quit' },
+    ],
+  });
+  // Edit menu
+  template.push({
+    label: 'Edit',
+    submenu: [
+      { role: 'undo' },
+      { role: 'redo' },
+      { type: 'separator' },
+      { role: 'cut' },
+      { role: 'copy' },
+      { role: 'paste' },
+      ...(isMac ? [
+        { role: 'pasteAndMatchStyle' },
+        { role: 'delete' },
+        { role: 'selectAll' },
+        { type: 'separator' },
+        {
+          label: 'Speech',
+          submenu: [
+            { role: 'startSpeaking' },
+            { role: 'stopSpeaking' },
+          ],
+        },
+      ] : [
+        { role: 'delete' },
+        { type: 'separator' },
+        { role: 'selectAll' },
+      ]),
+    ],
+  });
+  // View menu
+  template.push({
+    label: 'View',
+    submenu: [
+      {
+        label: 'Toggle Sidebar',
+        accelerator: 'CmdOrCtrl+B',
+        click: () => { try { mainWindow?.webContents.send('ui:toggleSidebar'); } catch {} },
+      },
+      { type: 'separator' },
+      { role: 'reload' },
+      { role: 'forceReload' },
+      { role: 'toggleDevTools' },
+      { type: 'separator' },
+      { role: 'resetZoom' },
+      { role: 'zoomIn' },
+      { role: 'zoomOut' },
+      { type: 'separator' },
+      { role: 'togglefullscreen' },
+    ],
+  });
+  // Window menu
+  template.push({
+    label: 'Window',
+    submenu: [
+      { role: 'minimize' },
+      { role: 'zoom' },
+      ...(isMac ? [
+        { type: 'separator' },
+        { role: 'front' },
+        { type: 'separator' },
+        { role: 'window' },
+      ] : [ { role: 'close' } ]),
+    ],
+  });
+  // Help (optional minimal)
+  template.push({ label: 'Help', submenu: [{ role: 'toggleDevTools', label: 'Toggle Developer Tools' }] });
+  const menu = Menu.buildFromTemplate(template);
+  Menu.setApplicationMenu(menu);
+}
 
 // UI: allow renderer to adjust minimum window width (e.g., when sidebar collapsed)
 ipcMain.handle('ui:setMinWidth', async (_evt, width) => {

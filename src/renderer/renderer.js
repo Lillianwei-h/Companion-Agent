@@ -7,6 +7,8 @@ const state = {
     sending: false,
     attachments: [], // [{ path, mime }]
     previewImagePath: '',
+    avatarCrop: null,
+    lastSidebarToggleTs: 0,
   },
 };
 
@@ -50,6 +52,15 @@ const elComposer = document.querySelector('.composer');
 const elImageModal = document.getElementById('image-modal');
 const elImageModalImg = document.getElementById('image-modal-img');
 const elImageDownload = document.getElementById('image-download');
+// Avatar crop modal elements
+const elAvatarCropModal = document.getElementById('avatar-crop-modal');
+const elAvatarCropImg = document.getElementById('avatar-crop-img');
+const elAvatarCropClose = document.getElementById('avatar-crop-close');
+const elAvatarCropCancel = document.getElementById('avatar-crop-cancel');
+const elAvatarCropApply = document.getElementById('avatar-crop-apply');
+const elCropStage = document.getElementById('crop-stage');
+const elCropLayer = document.getElementById('crop-layer');
+const elCropRect = document.getElementById('crop-rect');
 
 const elPersona = document.getElementById('persona');
 const elApiBase = document.getElementById('api-base');
@@ -842,12 +853,255 @@ async function testApiSettings() {
 async function pickAvatar(kind) {
   const file = await window.api.pickAvatar();
   if (!file) return;
-  if (!state.settings.avatars) state.settings.avatars = {};
-  state.settings.avatars[kind] = file;
-  // Only update avatars to avoid resetting other fields the user typed
-  state.settings = await window.api.updateSettings({ avatars: state.settings.avatars });
-  fillSettingsForm();
-  renderMessages();
+  openAvatarCrop(kind, file);
+}
+
+function openAvatarCrop(kind, filePath) {
+  try {
+    if (!elAvatarCropModal || !elAvatarCropImg || !elCropStage || !elCropRect) return;
+    state.ui.avatarCrop = {
+      kind,
+      path: filePath,
+      natural: { w: 0, h: 0 },
+      imgRect: { left: 0, top: 0, width: 0, height: 0 },
+      crop: { left: 0, top: 0, size: 0 },
+      mode: '',
+      start: { x: 0, y: 0, left: 0, top: 0, size: 0 },
+      handle: '',
+    };
+    // Show modal first to ensure elements have layout when measuring
+    show(elAvatarCropModal);
+    elAvatarCropImg.onload = () => {
+      try {
+        state.ui.avatarCrop.natural = { w: elAvatarCropImg.naturalWidth, h: elAvatarCropImg.naturalHeight };
+        requestAnimationFrame(() => layoutCropElements());
+      } catch {}
+    };
+    elAvatarCropImg.src = (String(filePath || '').startsWith('file://')) ? filePath : ('file://' + filePath);
+  } catch {}
+}
+
+function closeAvatarCrop() {
+  try {
+    if (elAvatarCropModal) hide(elAvatarCropModal);
+    if (elAvatarCropImg) elAvatarCropImg.src = '';
+    state.ui.avatarCrop = null;
+  } catch {}
+}
+
+function layoutCropElements() {
+  try {
+    const s = state.ui.avatarCrop;
+    if (!s || !elAvatarCropImg || !elCropStage || !elCropRect) return;
+    // Compute displayed image box via object-fit: contain
+    const stageRect = elCropStage.getBoundingClientRect();
+    const stageW = stageRect.width;
+    const stageH = stageRect.height;
+    const natW = Math.max(1, s.natural.w || elAvatarCropImg.naturalWidth || 1);
+    const natH = Math.max(1, s.natural.h || elAvatarCropImg.naturalHeight || 1);
+    const scale = Math.min(stageW / natW, stageH / natH);
+    const dispW = Math.max(1, Math.floor(natW * scale));
+    const dispH = Math.max(1, Math.floor(natH * scale));
+    const left = Math.floor((stageW - dispW) / 2);
+    const top = Math.floor((stageH - dispH) / 2);
+    s.imgRect = { left, top, width: dispW, height: dispH };
+    if (!s.crop || !s.crop.size) {
+      // 默认：正方形裁剪框居中且尽可能大
+      const size = Math.max(40, Math.floor(Math.min(dispW, dispH)));
+      const cx = left + (dispW - size) / 2;
+      const cy = top + (dispH - size) / 2;
+      s.crop = { left: cx, top: cy, size };
+    } else {
+      const maxLeft = s.imgRect.left + s.imgRect.width - s.crop.size;
+      const maxTop = s.imgRect.top + s.imgRect.height - s.crop.size;
+      s.crop.left = clamp(s.crop.left, s.imgRect.left, Math.max(s.imgRect.left, maxLeft));
+      s.crop.top = clamp(s.crop.top, s.imgRect.top, Math.max(s.imgRect.top, maxTop));
+      const maxSize = Math.min(s.imgRect.width, s.imgRect.height);
+      s.crop.size = clamp(s.crop.size, 40, maxSize);
+    }
+    elCropRect.style.left = s.crop.left + 'px';
+    elCropRect.style.top = s.crop.top + 'px';
+    elCropRect.style.width = s.crop.size + 'px';
+    elCropRect.style.height = s.crop.size + 'px';
+  } catch {}
+}
+
+function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
+
+function onCropMouseDown(e) {
+  try {
+    const s = state.ui.avatarCrop;
+    if (!s) return;
+    const target = e.target;
+    const isHandle = target && target.classList && target.classList.contains('handle');
+    let handle = isHandle ? (target.getAttribute('data-dir') || '') : '';
+    if (!isHandle) {
+      // 允许拖拽边框进行缩放（不必命中小手柄）
+      handle = detectEdgeHandleAtClient(e) || '';
+    }
+    s.mode = handle ? 'resize' : 'move';
+    s.handle = handle;
+    s.start = { x: e.clientX, y: e.clientY, left: s.crop.left, top: s.crop.top, size: s.crop.size };
+    window.addEventListener('mousemove', onCropMouseMove);
+    window.addEventListener('mouseup', onCropMouseUp, { once: true });
+    e.preventDefault();
+    e.stopPropagation();
+  } catch {}
+}
+
+function detectEdgeHandleAtClient(e) {
+  try {
+    const s = state.ui.avatarCrop;
+    if (!s) return '';
+    const stageRect = elCropStage.getBoundingClientRect();
+    const px = e.clientX - stageRect.left;
+    const py = e.clientY - stageRect.top;
+    const r = s.crop;
+    const tol = 8; // 容差像素
+    const nearLeft = Math.abs(px - r.left) <= tol;
+    const nearRight = Math.abs(px - (r.left + r.size)) <= tol;
+    const nearTop = Math.abs(py - r.top) <= tol;
+    const nearBottom = Math.abs(py - (r.top + r.size)) <= tol;
+    const insideX = px >= r.left - tol && px <= r.left + r.size + tol;
+    const insideY = py >= r.top - tol && py <= r.top + r.size + tol;
+    if (!(insideX && insideY)) return '';
+    if (nearLeft && nearTop) return 'nw';
+    if (nearRight && nearTop) return 'ne';
+    if (nearLeft && nearBottom) return 'sw';
+    if (nearRight && nearBottom) return 'se';
+    if (nearTop) return 'n';
+    if (nearBottom) return 's';
+    if (nearLeft) return 'w';
+    if (nearRight) return 'e';
+    return '';
+  } catch { return ''; }
+}
+
+// Hover 时显示对应的光标
+function onCropHoverMove(e) {
+  try {
+    const s = state.ui.avatarCrop;
+    if (!s || s.mode) return; // 正在拖拽时不改变光标
+    const h = detectEdgeHandleAtClient(e);
+    const map = { n: 'ns-resize', s: 'ns-resize', w: 'ew-resize', e: 'ew-resize', nw: 'nwse-resize', se: 'nwse-resize', ne: 'nesw-resize', sw: 'nesw-resize' };
+    elCropLayer.style.cursor = h ? (map[h] || 'move') : 'move';
+  } catch {}
+}
+
+function onCropMouseMove(e) {
+  try {
+    const s = state.ui.avatarCrop;
+    if (!s) return;
+    const dx = e.clientX - s.start.x;
+    const dy = e.clientY - s.start.y;
+    const img = s.imgRect;
+    let left = s.start.left;
+    let top = s.start.top;
+    let size = s.start.size;
+    const minSize = 40;
+    const right0 = s.start.left + s.start.size;
+    const bottom0 = s.start.top + s.start.size;
+
+    if (s.mode === 'move') {
+      left = clamp(s.start.left + dx, img.left, img.left + img.width - size);
+      top = clamp(s.start.top + dy, img.top, img.top + img.height - size);
+    } else if (s.mode === 'resize') {
+      const dir = s.handle;
+      if (dir === 'n') {
+        const topCand = clamp(s.start.top + dy, img.top, bottom0 - minSize);
+        size = bottom0 - topCand;
+        top = topCand;
+      } else if (dir === 's') {
+        size = clamp(s.start.size + dy, minSize, (img.top + img.height) - s.start.top);
+      } else if (dir === 'w') {
+        const leftCand = clamp(s.start.left + dx, img.left, right0 - minSize);
+        size = right0 - leftCand;
+        left = leftCand;
+      } else if (dir === 'e') {
+        size = clamp(s.start.size + dx, minSize, (img.left + img.width) - s.start.left);
+      } else if (dir === 'nw') {
+        const leftCand = clamp(s.start.left + dx, img.left, right0 - minSize);
+        const topCand = clamp(s.start.top + dy, img.top, bottom0 - minSize);
+        size = Math.min(right0 - leftCand, bottom0 - topCand);
+        left = right0 - size;
+        top = bottom0 - size;
+      } else if (dir === 'ne') {
+        const rightCand = clamp(right0 + dx, s.start.left + minSize, img.left + img.width);
+        const topCand = clamp(s.start.top + dy, img.top, bottom0 - minSize);
+        size = Math.min(rightCand - s.start.left, bottom0 - topCand);
+        left = s.start.left;
+        top = bottom0 - size;
+      } else if (dir === 'sw') {
+        const leftCand = clamp(s.start.left + dx, img.left, right0 - minSize);
+        const bottomCand = clamp(bottom0 + dy, s.start.top + minSize, img.top + img.height);
+        size = Math.min(right0 - leftCand, bottomCand - s.start.top);
+        left = right0 - size;
+        top = s.start.top;
+      } else if (dir === 'se') {
+        const rightCand = clamp(right0 + dx, s.start.left + minSize, img.left + img.width);
+        const bottomCand = clamp(bottom0 + dy, s.start.top + minSize, img.top + img.height);
+        size = Math.min(rightCand - s.start.left, bottomCand - s.start.top);
+        left = s.start.left;
+        top = s.start.top;
+      }
+      size = clamp(size, minSize, Math.min(img.width, img.height));
+      left = clamp(left, img.left, img.left + img.width - size);
+      top = clamp(top, img.top, img.top + img.height - size);
+    }
+    s.crop = { left, top, size };
+    if (elCropRect) {
+      elCropRect.style.left = left + 'px';
+      elCropRect.style.top = top + 'px';
+      elCropRect.style.width = size + 'px';
+      elCropRect.style.height = size + 'px';
+    }
+  } catch {}
+}
+
+function onCropMouseUp() {
+  try {
+    const s = state.ui.avatarCrop;
+    if (!s) return;
+    s.mode = '';
+    s.handle = '';
+    window.removeEventListener('mousemove', onCropMouseMove);
+  } catch {}
+}
+
+async function applyAvatarCrop() {
+  try {
+    const s = state.ui.avatarCrop;
+    if (!s || !elAvatarCropImg) return;
+    const { left, top, size } = s.crop;
+    const { left: il, top: it, width: iw, height: ih } = s.imgRect;
+    const natW = Math.max(1, s.natural.w || elAvatarCropImg.naturalWidth || 1);
+    const natH = Math.max(1, s.natural.h || elAvatarCropImg.naturalHeight || 1);
+    // From displayed box -> natural coordinates
+    const scale = Math.min(iw / natW, ih / natH);
+    const scaleX = 1 / scale;
+    const scaleY = 1 / scale;
+    const sx = (left - il) * scaleX;
+    const sy = (top - it) * scaleY;
+    const sw = size * scaleX;
+    const sh = size * scaleY;
+    const dest = 256;
+    const canvas = document.createElement('canvas');
+    canvas.width = dest;
+    canvas.height = dest;
+    const ctx = canvas.getContext('2d');
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
+    ctx.drawImage(elAvatarCropImg, sx, sy, sw, sh, 0, 0, dest, dest);
+    const dataUrl = canvas.toDataURL('image/png');
+    if (!state.settings.avatars) state.settings.avatars = {};
+    state.settings.avatars[s.kind] = dataUrl;
+    state.settings = await window.api.updateSettings({ avatars: state.settings.avatars });
+    fillSettingsForm();
+    renderMessages();
+    closeAvatarCrop();
+  } catch (e) {
+    alert('应用裁剪失败：' + (e?.message || e));
+  }
 }
 
 // Memory modal logic
@@ -972,7 +1226,13 @@ elExportIncludeFiles?.addEventListener('change', async () => {
   } catch {}
 });
 document.addEventListener('click', hideExportMenu);
-window.addEventListener('keydown', (e) => { if (e.key === 'Escape') hideExportMenu(); });
+window.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') {
+    hideExportMenu();
+    // Close settings modal with ESC
+    try { if (elSettingsModal && !elSettingsModal.classList.contains('hidden')) hide(elSettingsModal); } catch {}
+  }
+});
 elDeleteCurrent?.addEventListener('click', async () => {
   if (!state.currentId) return;
   await deleteConversationById(state.currentId);
@@ -1018,6 +1278,14 @@ elBtnProactiveOnce?.addEventListener('click', async () => {
 elPickAvatarUser.addEventListener('click', () => pickAvatar('user'));
 elPickAvatarAgent.addEventListener('click', () => pickAvatar('agent'));
 
+// Avatar crop modal events
+elAvatarCropClose?.addEventListener('click', () => { try { closeAvatarCrop(); } catch {} });
+elAvatarCropCancel?.addEventListener('click', () => { try { closeAvatarCrop(); } catch {} });
+elAvatarCropApply?.addEventListener('click', () => { try { applyAvatarCrop(); } catch {} });
+elCropLayer?.addEventListener('mousedown', (e) => { try { onCropMouseDown(e); } catch {} });
+elCropLayer?.addEventListener('mousemove', (e) => { try { onCropHoverMove(e); } catch {} });
+window.addEventListener('resize', () => { try { layoutCropElements(); } catch {} });
+
 elOpenMemory.addEventListener('click', async () => { state.memory = await window.api.listMemory(); renderMemoryList(); show(elMemoryModal); });
 elCloseMemory.addEventListener('click', () => hide(elMemoryModal));
 elMemNew.addEventListener('click', memNew);
@@ -1046,6 +1314,35 @@ elMigrateAttachments?.addEventListener('click', async () => {
     elMigrateAttachments.disabled = false;
     elMigrateAttachments.textContent = '迁移历史附件';
   }
+});
+
+// CmdOrCtrl+, to open Settings quickly
+window.addEventListener('keydown', async (e) => {
+  try {
+    const isMac = navigator.platform && /Mac/i.test(navigator.platform);
+    const hit = ((isMac && e.metaKey) || (!isMac && e.ctrlKey)) && (e.key === ',' || e.code === 'Comma');
+    if (!hit) return;
+    e.preventDefault();
+    e.stopPropagation();
+    // Toggle open; keep simple: open if hidden
+    if (elSettingsModal && elSettingsModal.classList.contains('hidden')) {
+      fillSettingsForm();
+      await refreshLogs();
+      show(elSettingsModal);
+    }
+  } catch {}
+});
+
+// CmdOrCtrl+B to expand sidebar
+window.addEventListener('keydown', (e) => {
+  try {
+    const isMac = navigator.platform && /Mac/i.test(navigator.platform);
+    const hit = ((isMac && e.metaKey) || (!isMac && e.ctrlKey)) && (e.key.toLowerCase?.() === 'b' || e.code === 'KeyB');
+    if (!hit) return;
+    e.preventDefault();
+    e.stopPropagation();
+    toggleSidebarWithGuard();
+  } catch {}
 });
 
 // Live preview translucency while sliding
@@ -1124,8 +1421,22 @@ function renderAttachment() {
       img.title = a.path;
       img.addEventListener('click', () => removeAttachmentAt(idx));
       list.appendChild(img);
-    }
+  }
+});
+
+// Respond to native menu “Preferences…” event from main process
+try {
+  window.api.onOpenSettings(async () => {
+    fillSettingsForm();
+    await refreshLogs();
+    show(elSettingsModal);
   });
+} catch {}
+
+// Respond to native menu “Toggle Sidebar” accelerator
+try {
+  window.api.onToggleSidebar(() => { try { toggleSidebarWithGuard(); } catch {} });
+} catch {}
   const meta = document.createElement('div');
   meta.className = 'meta';
   meta.style.minWidth = '160px';
@@ -1380,7 +1691,7 @@ function toggleSidebar() {
     const hidden = app.classList.contains('sidebar-hidden');
     // Adjust window min width: 400 when hidden, 700 when visible
     if (window.api && typeof window.api.setMinWidth === 'function') {
-      window.api.setMinWidth(400).catch(() => {});
+      window.api.setMinWidth(hidden ? 400 : 700).catch(() => {});
     }
   } catch {}
 }
@@ -1392,6 +1703,25 @@ function updateSidebarToggleLabel() {
     elSidebarToggle.textContent = hidden ? '⏵' : '⏴';
     elSidebarToggle.title = hidden ? '展开会话列表' : '收回会话列表';
   }
+}
+
+function ensureSidebarVisible() {
+  try {
+    const app = document.getElementById('app');
+    if (!app.classList.contains('sidebar-hidden')) return;
+    app.classList.remove('sidebar-hidden');
+    updateSidebarToggleLabel();
+    if (window.api && typeof window.api.setMinWidth === 'function') {
+      window.api.setMinWidth(700).catch(() => {});
+    }
+  } catch {}
+}
+
+function toggleSidebarWithGuard() {
+  const now = Date.now();
+  if (state.ui && now - (state.ui.lastSidebarToggleTs || 0) < 250) return;
+  state.ui.lastSidebarToggleTs = now;
+  toggleSidebar();
 }
 
 function startInlineRename(container, titleEl, conv) {

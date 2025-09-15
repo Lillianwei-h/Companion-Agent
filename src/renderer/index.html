@@ -113,13 +113,16 @@
                 <button id="btn-proactive-once">立即检查一次</button>
                 <span id="proactive-status" class="muted"></span>
               </div>
-              <h3>外观</h3>
-              <label class="inline">启用毛玻璃（macOS） <input id="vibrancy-enabled" type="checkbox" /></label>
-              <label>半透明强度 <input id="vibrancy-strength" type="range" min="0" max="100" step="5" /></label>
-              <label>侧栏半透明强度 <input id="vibrancy-sidebar-strength" type="range" min="0" max="100" step="5" /></label>
-              <div class="muted">提示：较高强度更透明。轻度可读性更强。</div>
-              
             </div>
+          </section>
+          <section>
+            <h3>外观</h3>
+              <label class="inline">启用毛玻璃（macOS） <input id="vibrancy-enabled" type="checkbox" /></label>
+              <div style="margin-top:8px; display:flex; gap:16px; align-items:center; flex-wrap: wrap;">
+                <label style="flex: 1 1 50%;">半透明强度 <input id="vibrancy-strength" type="range" min="0" max="100" step="5" /></label>
+                <label style="flex: 1 1 50%;">侧栏半透明强度 <input id="vibrancy-sidebar-strength" type="range" min="0" max="100" step="5" /></label>
+              </div>
+              <div class="muted">提示：较高强度更透明。轻度可读性更强。</div>
           </section>
           <section>
             <h3>调试与日志</h3>
@@ -166,6 +169,41 @@
         <img id="image-modal-img" alt="预览" />
         <div class="image-viewer-actions">
           <button id="image-download">▼</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Avatar Crop Modal -->
+    <div id="avatar-crop-modal" class="modal hidden">
+      <div class="modal-content medium">
+        <div class="modal-header">
+          <h2>裁剪头像</h2>
+          <button id="avatar-crop-close" class="icon">✕</button>
+        </div>
+        <div class="modal-body">
+          <div class="crop-container">
+            <div id="crop-stage" class="crop-stage">
+              <img id="avatar-crop-img" alt="要裁剪的图片" />
+              <div id="crop-layer" class="crop-layer">
+                <div id="crop-rect" class="crop-rect">
+                  <div class="handle handle-nw" data-dir="nw"></div>
+                  <div class="handle handle-ne" data-dir="ne"></div>
+                  <div class="handle handle-sw" data-dir="sw"></div>
+                  <div class="handle handle-se" data-dir="se"></div>
+                  <div class="handle handle-n" data-dir="n"></div>
+                  <div class="handle handle-s" data-dir="s"></div>
+                  <div class="handle handle-w" data-dir="w"></div>
+                  <div class="handle handle-e" data-dir="e"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <div style="display:flex; gap:8px; justify-content:flex-end; width:100%;">
+            <button id="avatar-crop-cancel">取消</button>
+            <button id="avatar-crop-apply" class="primary">使用</button>
+          </div>
         </div>
       </div>
     </div>
