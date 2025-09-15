@@ -1133,6 +1133,11 @@ async function applyAvatarCrop() {
 }
 
 // Memory modal logic
+async function openMemoryModal() {
+  try { state.memory = await window.api.listMemory(); } catch {}
+  renderMemoryList();
+  show(elMemoryModal);
+}
 function renderMemoryList() {
   const items = state.memory.items || [];
   elMemoryList.innerHTML = '';
@@ -1163,13 +1168,24 @@ async function memNew() {
 async function memSave() {
   const title = elMemTitle.value.trim() || '记忆';
   const content = elMemContent.value.trim();
-  if (!selectedMemId) {
-    await window.api.addMemory({ title, content });
-  } else {
-    await window.api.updateMemory({ id: selectedMemId, title, content, tags: [] });
+  const prev = elMemSave.textContent;
+  try {
+    elMemSave.disabled = true;
+    elMemSave.textContent = '保存中...';
+    if (!selectedMemId) {
+      await window.api.addMemory({ title, content });
+    } else {
+      await window.api.updateMemory({ id: selectedMemId, title, content, tags: [] });
+    }
+    state.memory = await window.api.listMemory();
+    renderMemoryList();
+    elMemSave.textContent = '已保存 ✓';
+    setTimeout(() => { try { elMemSave.textContent = prev; elMemSave.disabled = false; } catch {} }, 900);
+  } catch (e) {
+    alert('保存失败：' + (e?.message || '未知错误'));
+    elMemSave.textContent = prev;
+    elMemSave.disabled = false;
   }
-  state.memory = await window.api.listMemory();
-  renderMemoryList();
 }
 
 async function memDelete() {
@@ -1309,6 +1325,13 @@ window.addEventListener('keydown', (e) => {
       onNewChat();
     }
   } catch {}
+  // Cmd/Ctrl + M: Open Memory
+  try {
+    if ((e.metaKey || e.ctrlKey) && String(e.key || '').toLowerCase() === 'm') {
+      e.preventDefault();
+      openMemoryModal();
+    }
+  } catch {}
 });
 elDeleteCurrent?.addEventListener('click', async () => {
   if (!state.currentId) return;
@@ -1332,8 +1355,9 @@ elBtnTestNotif?.addEventListener('click', async () => {
   }
 });
 
-// Menu accelerator: listen for 'ui:newChat' from main
+// Menu accelerator: listen for menu events from main
 try { window.api.onNewChat?.(() => onNewChat()); } catch {}
+try { window.api.onOpenMemory?.(() => openMemoryModal()); } catch {}
 
 elBtnProactiveOnce?.addEventListener('click', async () => {
   elBtnProactiveOnce.disabled = true;
@@ -1366,7 +1390,7 @@ elCropLayer?.addEventListener('mousedown', (e) => { try { onCropMouseDown(e); } 
 elCropLayer?.addEventListener('mousemove', (e) => { try { onCropHoverMove(e); } catch {} });
 window.addEventListener('resize', () => { try { layoutCropElements(); } catch {} });
 
-elOpenMemory.addEventListener('click', async () => { state.memory = await window.api.listMemory(); renderMemoryList(); show(elMemoryModal); });
+elOpenMemory.addEventListener('click', openMemoryModal);
 elCloseMemory.addEventListener('click', () => hide(elMemoryModal));
 elMemNew.addEventListener('click', memNew);
 elMemSave.addEventListener('click', memSave);

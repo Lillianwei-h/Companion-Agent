@@ -204,6 +204,11 @@ function setAppMenu() {
           try { (BrowserWindow.getFocusedWindow() || mainWindow)?.webContents.send('ui:newChat'); } catch {}
         }
       },
+      {
+        label: 'Open Memory', accelerator: 'CmdOrCtrl+M', click: () => {
+          try { (BrowserWindow.getFocusedWindow() || mainWindow)?.webContents.send('ui:openMemory'); } catch {}
+        }
+      },
       { type: 'separator' },
       ...(!isMac ? [{
         label: 'Preferences…', accelerator: 'CmdOrCtrl+,', click: () => {
@@ -270,7 +275,8 @@ function setAppMenu() {
   template.push({
     label: 'Window',
     submenu: [
-      { role: 'minimize' },
+      // Rebind default minimize to avoid Cmd+M conflict on macOS
+      { role: 'minimize', accelerator: isMac ? 'Alt+Cmd+M' : undefined },
       { role: 'zoom' },
       ...(isMac ? [
         { type: 'separator' },
