@@ -31,9 +31,11 @@ contextBridge.exposeInMainWorld('api', {
   // Files
   openPath: (path) => ipcRenderer.invoke('file:open', path),
   saveCopy: (path) => ipcRenderer.invoke('file:saveCopy', path),
+  saveImageBuffer: (data, mime) => ipcRenderer.invoke('file:saveImageBuffer', data, mime),
 
   // Clipboard
   writeClipboardText: (text) => ipcRenderer.invoke('clipboard:writeText', text),
+  pasteImageFromClipboard: () => ipcRenderer.invoke('clipboard:readImageToTemp'),
 
   // Events
   onConversationsUpdated: (cb) => {

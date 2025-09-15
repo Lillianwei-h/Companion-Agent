@@ -805,6 +805,54 @@ ipcMain.handle('clipboard:writeText', async (_evt, text) => {
   }
 });
 
+// Clipboard: read image from system clipboard and save to a temp file under store root
+ipcMain.handle('clipboard:readImageToTemp', async () => {
+  try {
+    const img = clipboard.readImage();
+    if (!img || img.isEmpty()) return { ok: false, error: 'empty' };
+    const buf = img.toPNG();
+    if (!buf || !buf.length) return { ok: false, error: 'empty' };
+    const root = getStoreRoot();
+    if (!root) return { ok: false, error: 'no-store-root' };
+    const pathmod = require('path');
+    const fsmod = require('fs');
+    const dir = pathmod.join(root, 'tmp');
+    ensureDir(dir);
+    const name = `clip_${Date.now()}_${Math.random().toString(36).slice(2,6)}.png`;
+    const abs = pathmod.join(dir, name);
+    fsmod.writeFileSync(abs, buf);
+    return { ok: true, path: abs, mime: 'image/png' };
+  } catch (e) {
+    return { ok: false, error: e?.message || String(e) };
+  }
+});
+
+// Save raw image bytes to a temp file under store root
+ipcMain.handle('file:saveImageBuffer', async (_evt, data, mime) => {
+  try {
+    if (!data) return { ok: false, error: 'no-data' };
+    const root = getStoreRoot();
+    if (!root) return { ok: false, error: 'no-store-root' };
+    const pathmod = require('path');
+    const fsmod = require('fs');
+    const dir = pathmod.join(root, 'tmp');
+    ensureDir(dir);
+    const mt = String(mime || '').toLowerCase();
+    const ext = mt === 'image/jpeg' || mt === 'image/jpg' ? 'jpg'
+      : mt === 'image/gif' ? 'gif'
+      : mt === 'image/webp' ? 'webp'
+      : mt === 'image/bmp' ? 'bmp'
+      : 'png';
+    const name = `clip_${Date.now()}_${Math.random().toString(36).slice(2,6)}.${ext}`;
+    const abs = pathmod.join(dir, name);
+    const buf = Buffer.from(data.buffer ? data : new Uint8Array(data));
+    fsmod.writeFileSync(abs, buf);
+    return { ok: true, path: abs, mime: mt || `image/${ext}` };
+  } catch (e) {
+    return { ok: false, error: e?.message || String(e) };
+  }
+});
+
 // Save a copy of a file to user-selected location
 ipcMain.handle('file:saveCopy', async (_evt, filePath) => {
   try {

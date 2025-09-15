@@ -81,9 +81,9 @@ label.small { font-size: 12px; }
 .chat-resizer:hover { background: #1a1f2a; }
 .message { display: flex; gap: 10px; margin-bottom: 12px; }
 .message.user { flex-direction: row-reverse; }
-.sidebar-toggle { position: absolute; top: 10%; left: var(--sidebar-width); transform: translate(-50%, -50%); width: 28px; height: 32px; display: flex; align-items: center; justify-content: center; border-radius: 10px; z-index: 60; background: var(--button-bg); color: var(--button-fg); border: 1px solid var(--button-border); box-shadow: 0 2px 10px rgba(0,0,0,0.25); opacity: 0.6; transition: left .25s ease, transform .25s ease, opacity .15s ease, background-color .15s ease; }
+.sidebar-toggle { position: absolute; top: 10%; left: var(--sidebar-width); transform: translate(-50%, -50%); width: 28px; height: 32px; display: flex; align-items: center; justify-content: center; border-radius: 10px; z-index: 60; background: var(--button-bg); color: var(--button-fg); border: 1px solid var(--button-border); box-shadow: 0 2px 10px rgba(0,0,0,0.25); opacity: 1; transition: left .25s ease, transform .25s ease, opacity .15s ease, background-color .15s ease; }
 .sidebar-toggle:hover, .sidebar-toggle:focus-visible { background: var(--button-hover-bg); opacity: 1; }
-#app.sidebar-hidden .sidebar-toggle { left: -10px; transform: translate(50%, -50%); }
+#app.sidebar-hidden .sidebar-toggle { left: -10px; transform: translate(50%, -50%); opacity: 0.6;}
 .avatar { width: 42px; height: 42px; border-radius: 50%; background: #2a2f3d; object-fit: cover; }
 .bubble { max-width: 100%; padding: 10px 12px; border-radius: 12px; line-height: 1.4; white-space: pre-wrap; overflow-wrap: anywhere; word-break: normal; }
 .message.user .bubble { background: var(--user-bubble-bg); color: #fff; border-bottom-right-radius: 4px; box-shadow: 0 6px 18px rgba(0,0,0,0.25); }

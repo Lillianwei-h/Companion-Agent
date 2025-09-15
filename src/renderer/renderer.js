@@ -1215,6 +1215,35 @@ elInput.addEventListener('keydown', (e) => {
 });
 // Auto-resize while typing (when not manually resized)
 elInput.addEventListener('input', () => { try { autoResizeComposer(); } catch {} });
+// Paste: if clipboard has image, add as attachment (text continues to paste normally)
+elInput.addEventListener('paste', async (e) => {
+  try {
+    const items = Array.from(e.clipboardData?.items || []);
+    const imgItems = items.filter(it => it && it.kind === 'file' && String(it.type || '').startsWith('image/'));
+    const saved = [];
+    if (imgItems.length && window.api && typeof window.api.saveImageBuffer === 'function') {
+      for (const it of imgItems) {
+        const file = it.getAsFile && it.getAsFile();
+        if (!file) continue;
+        const buf = await file.arrayBuffer();
+        const res = await window.api.saveImageBuffer(new Uint8Array(buf), file.type || 'image/png');
+        if (res && res.ok && res.path) saved.push({ path: res.path, mime: res.mime || file.type || 'image/png' });
+      }
+    }
+    // Fallback to system clipboard image if event items not present
+    if (!saved.length && window.api && typeof window.api.pasteImageFromClipboard === 'function') {
+      const res = await window.api.pasteImageFromClipboard();
+      if (res && res.ok && res.path) saved.push({ path: res.path, mime: res.mime || detectMimeFromPath(res.path) || 'image/png' });
+    }
+    if (saved.length) {
+      const list = Array.isArray(state.ui.attachments) ? state.ui.attachments : [];
+      for (const a of saved) list.push(a);
+      state.ui.attachments = list;
+      renderAttachment();
+      try { autoResizeComposer(); } catch {}
+    }
+  } catch {}
+});
 window.addEventListener('resize', () => { try { autoResizeComposer(); } catch {} });
 elNewChat.addEventListener('click', onNewChat);
 elSummarize.addEventListener('click', onSummarize);
