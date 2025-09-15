@@ -39,8 +39,18 @@ Customization
 - Proactive logic and prompts live in src/common/openai.js.
 - Persistence is in src/common/persist.js.
 
-Packaging
-- This repo includes only a dev script. To produce binaries, integrate electron-builder or similar.
+Packaging (macOS)
+- Prerequisites: `npm install` (installs `electron-builder`).
+- Commands:
+  - Current arch: `npm run dist`
+  - Apple Silicon: `npm run dist:arm64`
+  - Intel: `npm run dist:x64`
+- Output: `dist/` with `.dmg`, `.zip`, and the `.app` bundle.
+- App Icon: place an ICNS at `build/icon.icns` (electron-builder picks it automatically). To generate ICNS:
+  - Prepare a 1024×1024 PNG → create an `.iconset` and run `iconutil -c icns Your.iconset -o build/icon.icns`.
+- Signing & Notarization (optional, for distribution):
+  - Configure Apple Developer credentials via env vars (APPLE_ID, APPLE_APP_SPECIFIC_PASSWORD, APPLE_TEAM_ID) and ensure certificates in Keychain.
+  - Then run the same `npm run dist` commands; electron-builder will sign/notarize when configured.
 
 Export With Attachments (Zip)
 - Open the Export menu in the chat header. Two toggles are available:

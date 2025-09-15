@@ -9,13 +9,35 @@
     "start": "electron .",
     "dev": "electron .",
     "lint": "echo 'add linter if needed'",
-    "pack": "echo 'configure electron-builder if needed'"
+    "pack": "echo 'configure electron-builder if needed'",
+    "dist": "electron-builder --mac",
+    "dist:arm64": "electron-builder --mac --arm64",
+    "dist:x64": "electron-builder --mac --x64"
   },
   "dependencies": {
     "@google/genai": "^0.3.1",
     "archiver": "^6.0.1"
   },
   "devDependencies": {
-    "electron": "^30.0.0"
+    "electron": "^30.0.0",
+    "electron-builder": "^24.13.3"
+  },
+  "build": {
+    "appId": "com.example.companionagent",
+    "productName": "Companion Agent",
+    "files": [
+      "electron/**/*",
+      "src/**/*",
+      "package.json",
+      "!userData/**",
+      "!**/*.map"
+    ],
+    "directories": { "output": "dist" },
+    "asar": true,
+    "mac": {
+      "icon": "build/icon.icns",
+      "category": "public.app-category.productivity",
+      "target": ["dmg", "zip"]
+    }
   }
 }
