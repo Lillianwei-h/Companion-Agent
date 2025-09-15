@@ -389,17 +389,9 @@ function renderMessages() {
     const bubble = document.createElement('div');
     bubble.className = 'bubble';
     bubble.textContent = msg.content || '';
-    // Optional image content
-    if (msg.imagePath) {
-      const pic = document.createElement('img');
-      pic.className = 'msg-image';
-      pic.src = 'file://' + msg.imagePath;
-      try { pic.dataset.path = msg.imagePath; } catch {}
-      pic.alt = 'image';
-      wrap.appendChild(pic);
-    }
-    // Optional attachments array
-    if (Array.isArray(msg.attachments)) {
+    // Prefer new attachments array; fallback to legacy fields when absent
+    const hasAttach = Array.isArray(msg.attachments) && msg.attachments.length > 0;
+    if (hasAttach) {
       for (const a of msg.attachments) {
         if (!a?.path) continue;
         if (a.mime === 'application/pdf' || String(a.path).toLowerCase().endsWith('.pdf')) {
@@ -420,17 +412,27 @@ function renderMessages() {
           wrap.appendChild(pic);
         }
       }
-    }
-    // Optional PDF content (show a small tag with file name)
-    if (msg.pdfPath) {
-      const tag = document.createElement('div');
-      tag.style.fontSize = '12px';
-      tag.style.color = 'var(--muted)';
-      const name = (msg.pdfPath || '').split(/[\\/]/).pop();
-      tag.textContent = `📄 PDF 附件${name ? ' · ' + name : ''}`;
-      tag.style.cursor = 'pointer';
-      tag.addEventListener('click', () => { try { window.api.openPath(msg.pdfPath); } catch {} });
-      wrap.appendChild(tag);
+    } else {
+      // Legacy imagePath
+      if (msg.imagePath) {
+        const pic = document.createElement('img');
+        pic.className = 'msg-image';
+        pic.src = 'file://' + msg.imagePath;
+        try { pic.dataset.path = msg.imagePath; } catch {}
+        pic.alt = 'image';
+        wrap.appendChild(pic);
+      }
+      // Legacy pdfPath (show a small tag with file name)
+      if (msg.pdfPath) {
+        const tag = document.createElement('div');
+        tag.style.fontSize = '12px';
+        tag.style.color = 'var(--muted)';
+        const name = (msg.pdfPath || '').split(/[\\/]/).pop();
+        tag.textContent = `📄 PDF 附件${name ? ' · ' + name : ''}`;
+        tag.style.cursor = 'pointer';
+        tag.addEventListener('click', () => { try { window.api.openPath(msg.pdfPath); } catch {} });
+        wrap.appendChild(tag);
+      }
     }
     const time = document.createElement('div');
     time.className = 'timestamp';
@@ -576,7 +578,7 @@ function formatTime(ts) {
 
 async function onSend() {
   const text = elInput.value.trim();
-  const attach = state.ui.attachments;
+  const attach = (state.ui.attachments || []).slice(); // snapshot before clearing
   if (state.ui.sending) return;
   state.ui.sending = true;
   elSend.disabled = true;
@@ -586,6 +588,8 @@ async function onSend() {
   // Optimistically render user message (with attachments if any)
   const hasContent = !!text || (attach && attach.length);
   if (hasContent) appendOptimisticUser(text, attach);
+  // Immediately clear composer attachments preview to avoid overlay while waiting
+  try { clearAttachments(); } catch {}
   // Recalculate composer height after clearing input
   try { autoResizeComposer(); } catch {}
   // Show typing indicator and placeholder
