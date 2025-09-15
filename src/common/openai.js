@@ -41,39 +41,6 @@ async function chatCompletions({ baseUrl, apiKey, body }) {
   return json;
 }
 
-async function geminiChatSend({ settings, history, message }) {
-  let GoogleGenAI;
-  try {
-    const lib = require('@google/genai');
-    GoogleGenAI = lib.GoogleGenAI || lib;
-  } catch (e) {
-    throw new Error('Gemini SDK 未安装。请执行: npm i @google/genai');
-  }
-  const apiKey = settings?.api?.apiKey;
-  if (!apiKey) throw new Error('缺少 Gemini API Key');
-  const ai = new GoogleGenAI({ apiKey });
-  const model = settings?.api?.model || 'gemini-2.0-flash';
-  const safetySettings = [
-    { category: 'HARM_CATEGORY_HARASSMENT', threshold: 'BLOCK_NONE' },
-    { category: 'HARM_CATEGORY_HATE_SPEECH', threshold: 'BLOCK_NONE' },
-    { category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT', threshold: 'BLOCK_NONE' },
-    { category: 'HARM_CATEGORY_DANGEROUS_CONTENT', threshold: 'BLOCK_NONE' },
-    { category: 'HARM_CATEGORY_CIVIC_INTEGRITY', threshold: 'BLOCK_NONE' }
-  ];
-  let text = '';
-  const names = { user: (settings?.ui?.names?.user || 'User'), model: (settings?.ui?.names?.model || 'You') };
-  for (const historyPart of history) {
-    const label = historyPart.role === 'model' ? (names.model + ':') : (names.user + ':');
-    text = text + `${label} ${historyPart.parts.map(p => p.text).join(' ')}\n`;
-  }
-  text = text + ('[对话内容结束]\nNote: ') + message + `\n你回复时不需要带上姓名和时间戳。只要回复你说的话即可。\n`;
-  console.log('Gemini generate text:', { model, text });
-  const resp = await ai.models.generateContent({ model, contents: text, config: { safetySettings: safetySettings } });
-  console.log('Gemini response:', resp);
-  const content = (resp && (resp.text || resp.output_text || '').toString().trim()) || '';
-  return content;
-}
-
 async function geminiGenerateWithParts({ settings, parts }) {
   let GoogleGenAI;
   try {
@@ -111,62 +78,6 @@ function detectMimeFromPath(p) {
     if (lower.endsWith('.pdf')) return 'application/pdf';
     return 'application/octet-stream';
   } catch { return 'application/octet-stream'; }
-}
-
-async function callVision({ settings, conversation, memory, imagePath, imageMime, userText }) {
-  if (!isGeminiBase(settings?.api?.baseUrl)) {
-    throw new Error('当前 API Base 非 Gemini，暂不支持图片发送');
-  }
-  if (!imagePath) throw new Error('缺少图片路径');
-  const mime = imageMime || detectMimeFromPath(imagePath);
-  const b64 = fs.readFileSync(imagePath, { encoding: 'base64' });
-  const persona = settings?.persona || '';
-  const systemPrompt = buildSystemPrompt(persona, memory);
-  const limit = Math.max(1, Math.min(500, Number(settings?.api?.historyMessages ?? 25)));
-  const msgs = pickRecentMessages(conversation.messages, limit);
-  const names = { user: (settings?.ui?.names?.user || 'User'), model: (settings?.ui?.names?.model || 'You') };
-  let context = `SYSTEM:\n${systemPrompt}\n[以下是近期对话]\n`;
-  for (const m of msgs) {
-    const label = m.role === 'assistant' ? (names.model + ':') : (names.user + ':');
-    const ts = m.timestamp ? `[${formatTs(m.timestamp)}] ` : '';
-    context += `${label} ${ts}${m.content || ''}\n`;
-  }
-  context += '\n[对话结束]\n请参考以上背景信息，结合图片进行回答。';
-  const parts = [
-    { text: context },
-    { inlineData: { mimeType: mime, data: b64 } },
-    { text: (userText && userText.trim()) ? userText.trim() : '请描述这张图片。' },
-  ];
-  return await geminiGenerateWithParts({ settings, parts });
-}
-
-// Gemini: inline PDF analysis/summarization
-async function callPdf({ settings, conversation, memory, pdfPath, userText }) {
-  if (!isGeminiBase(settings?.api?.baseUrl)) {
-    throw new Error('当前 API Base 非 Gemini，暂不支持 PDF 发送');
-  }
-  if (!pdfPath) throw new Error('缺少 PDF 路径');
-  const mime = 'application/pdf';
-  const b64 = fs.readFileSync(pdfPath, { encoding: 'base64' });
-  const persona = settings?.persona || '';
-  const systemPrompt = buildSystemPrompt(persona, memory);
-  const limit = Math.max(1, Math.min(500, Number(settings?.api?.historyMessages ?? 25)));
-  const msgs = pickRecentMessages(conversation.messages, limit);
-  const names = { user: (settings?.ui?.names?.user || 'User'), model: (settings?.ui?.names?.model || 'You') };
-  let context = `SYSTEM:\n${systemPrompt}\n[以下是近期对话]\n`;
-  for (const m of msgs) {
-    const label = m.role === 'assistant' ? (names.model + ':') : (names.user + ':');
-    const ts = m.timestamp ? `[${formatTs(m.timestamp)}] ` : '';
-    context += `${label} ${ts}${m.content || ''}\n`;
-  }
-  context += '\n[对话结束]\n请参考以上背景信息，结合文档进行回答。';
-  const prompt = (userText && userText.trim()) ? userText.trim() : '请总结该 PDF 文档的要点，并给出关键结论。';
-  const parts = [
-    { text: context },
-    { inlineData: { mimeType: mime, data: b64 } },
-    { text: prompt },
-  ];
-  return await geminiGenerateWithParts({ settings, parts });
 }
 
 function formatTs(ts) {
@@ -251,10 +162,10 @@ async function callChat({ settings, conversation, memory }) {
 async function initialGreeting({ settings, memory }) {
   const persona = settings?.persona || '';
   const systemPrompt = buildSystemPrompt(persona, memory);
-  const greet = `你需要向${settings?.ui?.names?.user || 'User'}发送一条打招呼的信息`;
+  const greet = `Note: 你需要向${settings?.ui?.names?.user || 'User'}发送一条打招呼的信息`;
   if (isGeminiBase(settings?.api?.baseUrl)) {
-    const history = [ { role: 'user', parts: [{ text: `SYSTEM:\n${systemPrompt}` }] } ];
-    return await geminiChatSend({ settings, history, message: greet });
+    const parts = [{ text: `SYSTEM:\n${systemPrompt}` }, { text: greet }];
+    return await geminiGenerateWithParts({ settings, parts });
   } else {
     const messages = [
       { role: 'system', content: systemPrompt },
@@ -391,7 +302,7 @@ async function summarizeConversation({ settings, conversation }) {
       }
     }
     // Ask to produce final summary
-    parts.push({ text: '请基于以上对话文本与附件，输出记忆条目。' });
+    parts.push({ text: `[对话结束]\n请基于以上对话文本与附件，输出记忆内容，应当是以${settings?.ui?.names?.model || '你'}作为第一人称的表述，只需要单纯的记忆内容，不需要加入说话人姓名和时间戳。` });
     return await geminiGenerateWithParts({ settings, parts });
   } else {
     const names = { user: (settings?.ui?.names?.user || 'User'), model: (settings?.ui?.names?.model || 'You') };
@@ -417,7 +328,8 @@ async function summarizeConversation({ settings, conversation }) {
 
 async function testApi({ settings }) {
   if (isGeminiBase(settings?.api?.baseUrl)) {
-    return await geminiChatSend({ settings, history: [], message: '你是一个诊断助手。请仅回复：OK' });
+    const parts = [{ text: 'SYSTEM:\n你是一个诊断助手。请仅回复：OK' }];
+    return await geminiGenerateWithParts({ settings, parts });
   } else {
     const messages = [
       { role: 'system', content: '你是一个诊断助手。请仅回复：OK' },
@@ -436,4 +348,4 @@ async function testApi({ settings }) {
   }
 }
 
-module.exports = { callChat, proactiveCheck, summarizeConversation, testApi, initialGreeting, callVision, callPdf };
+module.exports = { callChat, proactiveCheck, summarizeConversation, testApi, initialGreeting };
