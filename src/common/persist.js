@@ -71,7 +71,7 @@ function defaultSettings() {
       vibrancy: {
         enabled: true,
         strength: 0.65, // 0..1
-        sidebarStrength: 0.35, // 0..1 (独立控制侧栏透明度)
+        sidebarStrength: 0.7, // 0..1 (独立控制侧栏透明度)
       },
       names: {
         user: '我',

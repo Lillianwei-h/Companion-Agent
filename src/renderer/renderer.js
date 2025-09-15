@@ -152,7 +152,7 @@ async function init() {
     const app = document.getElementById('app');
     const hidden = app.classList.contains('sidebar-hidden');
     if (window.api && typeof window.api.setMinWidth === 'function') {
-      window.api.setMinWidth(hidden ? 400 : 700).catch(() => {});
+      window.api.setMinWidth(400).catch(() => {});
     }
   } catch {}
 }
@@ -1248,7 +1248,7 @@ function toggleSidebar() {
     const hidden = app.classList.contains('sidebar-hidden');
     // Adjust window min width: 400 when hidden, 700 when visible
     if (window.api && typeof window.api.setMinWidth === 'function') {
-      window.api.setMinWidth(hidden ? 400 : 700).catch(() => {});
+      window.api.setMinWidth(400).catch(() => {});
     }
   } catch {}
 }
