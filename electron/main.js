@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, Notification, dialog, shell, Menu } = require('electron');
+const { app, BrowserWindow, ipcMain, Notification, dialog, shell, Menu, clipboard } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const { ensureStores, Stores, getStoreRoot, ensureDir } = require('../src/common/persist');
@@ -789,6 +789,16 @@ ipcMain.handle('file:open', async (_evt, filePath) => {
   try {
     const res = await shell.openPath(String(filePath || ''));
     if (res) return { ok: false, error: res };
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e?.message || String(e) };
+  }
+});
+
+// Clipboard: write plain text
+ipcMain.handle('clipboard:writeText', async (_evt, text) => {
+  try {
+    clipboard.writeText(String(text ?? ''));
     return { ok: true };
   } catch (e) {
     return { ok: false, error: e?.message || String(e) };

@@ -32,6 +32,9 @@ contextBridge.exposeInMainWorld('api', {
   openPath: (path) => ipcRenderer.invoke('file:open', path),
   saveCopy: (path) => ipcRenderer.invoke('file:saveCopy', path),
 
+  // Clipboard
+  writeClipboardText: (text) => ipcRenderer.invoke('clipboard:writeText', text),
+
   // Events
   onConversationsUpdated: (cb) => {
     ipcRenderer.on('data:conversations-updated', cb);

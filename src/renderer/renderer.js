@@ -441,6 +441,12 @@ function renderMessages() {
     // actions
     const actions = document.createElement('div');
     actions.className = 'msg-actions';
+    const btnCopy = document.createElement('button');
+    btnCopy.title = '复制';
+    btnCopy.textContent = '📋';
+    btnCopy.className = 'msg-btn';
+    btnCopy.setAttribute('data-action', 'copy');
+    btnCopy.setAttribute('data-mid', msg.id);
     const btnEdit = document.createElement('button');
     btnEdit.title = '编辑';
     btnEdit.textContent = '✎';
@@ -453,6 +459,7 @@ function renderMessages() {
     btnDel.className = 'msg-btn';
     btnDel.setAttribute('data-action', 'delete');
     btnDel.setAttribute('data-mid', msg.id);
+    actions.appendChild(btnCopy);
     actions.appendChild(btnEdit);
     actions.appendChild(btnDel);
 
@@ -491,6 +498,23 @@ elMessages.addEventListener('click', async (e) => {
     await onEditMessage(cid, mid, msg.content);
   } else if (action === 'delete') {
     await onDeleteMessage(cid, mid);
+  } else if (action === 'copy') {
+    const text = String(msg.content || '');
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(text);
+      } else if (window.api && typeof window.api.writeClipboardText === 'function') {
+        await window.api.writeClipboardText(text);
+      } else {
+        throw new Error('no-clipboard');
+      }
+      // Optional quick feedback
+      const original = btn.textContent;
+      btn.textContent = '✓';
+      setTimeout(() => { try { btn.textContent = original; } catch {} }, 600);
+    } catch (e) {
+      alert('复制失败：' + (e?.message || e));
+    }
   }
 });
 
