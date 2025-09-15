@@ -317,23 +317,25 @@ ipcMain.handle('conversations:create', async (_evt, title) => {
   } catch (e) {
     console.error('auto-pin on create failed', e);
   }
-  // Immediately send a greeting message using only system prompt + memory
-  try {
-    const settings = Stores.settings.read();
-    const memory = Stores.memory.read();
-    const text = await initialGreeting({ settings, memory });
-    if (text) {
-      const convStore = Stores.conversations.read();
-      const c = convStore.conversations.find(x => x.id === id);
-      if (c) {
-        c.messages.push({ id: `msg_${Date.now()}`, role: 'assistant', content: text, timestamp: new Date().toISOString() });
-        Stores.conversations.write(convStore);
-        mainWindow?.webContents.send('data:conversations-updated');
+  // Kick off initial greeting asynchronously to avoid blocking creation response
+  setTimeout(async () => {
+    try {
+      const settings = Stores.settings.read();
+      const memory = Stores.memory.read();
+      const text = await initialGreeting({ settings, memory });
+      if (text) {
+        const convStore = Stores.conversations.read();
+        const c = convStore.conversations.find(x => x.id === id);
+        if (c) {
+          c.messages.push({ id: `msg_${Date.now()}`, role: 'assistant', content: text, timestamp: new Date().toISOString() });
+          Stores.conversations.write(convStore);
+          mainWindow?.webContents.send('data:conversations-updated');
+        }
       }
+    } catch (e) {
+      console.error('initial greeting failed', e);
     }
-  } catch (e) {
-    console.error('initial greeting failed', e);
-  }
+  }, 0);
   return conv;
 });
 

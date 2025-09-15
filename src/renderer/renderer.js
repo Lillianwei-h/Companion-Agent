@@ -104,12 +104,14 @@ async function init() {
     } catch {}
   }
   state.conversationsStore = await window.api.listConversations();
+  let createdNow = false;
   if (!state.conversationsStore.conversations.length) {
     const conv = await window.api.createConversation();
     state.conversationsStore = await window.api.listConversations();
     // Refresh settings to reflect any auto-pinning performed in main process
     try { state.settings = await window.api.getSettings(); } catch {}
     state.currentId = conv.id;
+    createdNow = true;
   } else {
     // Try to restore last selected from settings
     const sel = state.settings?.ui?.currentConversationId;
@@ -120,6 +122,10 @@ async function init() {
   try { await window.api.setCurrentConversation(state.currentId); } catch {}
   state.memory = await window.api.listMemory();
   renderAll();
+  // If we just created a fresh conversation (first run), show typing immediately
+  if (createdNow) {
+    try { startTypingPlaceholder(); } catch {}
+  }
 
   // Initialize composer height from CSS var if present
   if (!getComputedStyle(elChat).getPropertyValue('--composer-height')) {
@@ -143,11 +149,41 @@ async function init() {
   } catch {}
 
   window.api.onConversationsUpdated(async () => {
-    state.conversationsStore = await window.api.listConversations();
+    const prevStore = state.conversationsStore || { conversations: [] };
+    const prevCounts = Object.fromEntries((prevStore.conversations || []).map(c => [c.id, (c.messages || []).length]));
+    const nextStore = await window.api.listConversations();
+    // Detect any conversation that received new assistant message
+    let targetConvId = null;
+    for (const conv of (nextStore.conversations || [])) {
+      const prevLen = prevCounts[conv.id] || 0;
+      const nextLen = (conv.messages || []).length;
+      if (nextLen > prevLen) {
+        const last = conv.messages[nextLen - 1];
+        if (last && last.role === 'assistant') {
+          targetConvId = conv.id;
+          break;
+        }
+      }
+    }
+    state.conversationsStore = nextStore;
     // Keep local settings in sync (e.g., auto-pin updates from main)
     try { state.settings = await window.api.getSettings(); } catch {}
+    // Auto-switch to conversation that just received an assistant message
+    if (targetConvId && targetConvId !== state.currentId) {
+      state.currentId = targetConvId;
+      try { await window.api.setCurrentConversation(state.currentId); } catch {}
+    }
     renderConversations();
     renderMessages();
+    // If typing placeholder is visible and an assistant message has arrived, stop it
+    try {
+      const ph = document.getElementById('assistant-typing-placeholder');
+      if (ph) {
+        const conv = (state.conversationsStore.conversations || []).find(c => c.id === state.currentId);
+        const last = conv && (conv.messages || [])[conv.messages.length - 1];
+        if (last && last.role === 'assistant') stopTypingPlaceholder();
+      }
+    } catch {}
   });
 
   // Initialize sidebar toggle arrow according to current state
@@ -694,15 +730,23 @@ async function onDeleteMessage(conversationId, messageId) {
 async function onNewChat() {
   try {
     const conv = await window.api.createConversation();
-    state.conversationsStore = await window.api.listConversations();
-    // Fetch settings to reflect possible auto-pin
-    try { state.settings = await window.api.getSettings(); } catch {}
+    // Optimistically select and show the new conversation immediately
     state.currentId = conv.id;
-    window.api.setCurrentConversation(state.currentId).catch(() => {});
+    try { window.api.setCurrentConversation(state.currentId).catch(() => {}); } catch {}
+    // Optimistically add to local store if missing
+    const list = Array.isArray(state.conversationsStore?.conversations) ? state.conversationsStore.conversations : [];
+    if (!list.find(c => c.id === conv.id)) {
+      state.conversationsStore.conversations = [conv, ...list];
+    }
     renderConversations();
     renderMessages();
-    // Start inline edit on the title to encourage renaming immediately
-    setTimeout(() => startInlineTitleEdit(), 0);
+    // Refresh from disk to sync any auto-pinning etc., without blocking initial UX
+    state.conversationsStore = await window.api.listConversations();
+    try { state.settings = await window.api.getSettings(); } catch {}
+    renderConversations();
+    renderMessages();
+    // After final render, show typing placeholder for agent greeting
+    try { startTypingPlaceholder(); } catch {}
   } catch (e) {
     alert('新建对话失败：' + e.message);
   }
