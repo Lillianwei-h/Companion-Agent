@@ -677,6 +677,32 @@ ipcMain.handle('file:open', async (_evt, filePath) => {
   }
 });
 
+// Save a copy of a file to user-selected location
+ipcMain.handle('file:saveCopy', async (_evt, filePath) => {
+  try {
+    const src = String(filePath || '');
+    if (!src) return { ok: false, error: 'no-path' };
+    const pathmod = require('path');
+    const base = safeFilename(pathmod.basename(src));
+    const ext = pathmod.extname(base).toLowerCase();
+    const filters = [];
+    if (['.png', '.jpg', '.jpeg', '.gif', '.webp', '.bmp'].includes(ext)) {
+      filters.push({ name: 'Images', extensions: ['png','jpg','jpeg','gif','webp','bmp'] });
+    }
+    filters.push({ name: 'All Files', extensions: ['*'] });
+    const res = await dialog.showSaveDialog(mainWindow, {
+      title: '另存为',
+      defaultPath: base || 'image',
+      filters,
+    });
+    if (res.canceled || !res.filePath) return { ok: false, canceled: true };
+    fs.copyFileSync(src, res.filePath);
+    return { ok: true, path: res.filePath };
+  } catch (e) {
+    return { ok: false, error: e?.message || String(e) };
+  }
+});
+
 function appendLog(entry) {
   try {
     const logs = Stores.logs.read() || { items: [] };

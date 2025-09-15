@@ -81,8 +81,8 @@ label.small { font-size: 12px; }
 .chat-resizer:hover { background: #1a1f2a; }
 .message { display: flex; gap: 10px; margin-bottom: 12px; }
 .message.user { flex-direction: row-reverse; }
-.sidebar-toggle { position: absolute; top: 10%; left: var(--sidebar-width); transform: translate(-50%, -50%); width: 28px; height: 32px; display: flex; align-items: center; justify-content: center; border-radius: 10px; z-index: 60; background: var(--button-bg); color: var(--button-fg); border: 1px solid var(--button-border); box-shadow: 0 2px 10px rgba(0,0,0,0.25); transition: left .25s ease, transform .25s ease; }
-.sidebar-toggle:hover { background: var(--button-hover-bg); }
+.sidebar-toggle { position: absolute; top: 10%; left: var(--sidebar-width); transform: translate(-50%, -50%); width: 28px; height: 32px; display: flex; align-items: center; justify-content: center; border-radius: 10px; z-index: 60; background: var(--button-bg); color: var(--button-fg); border: 1px solid var(--button-border); box-shadow: 0 2px 10px rgba(0,0,0,0.25); opacity: 0.6; transition: left .25s ease, transform .25s ease, opacity .15s ease, background-color .15s ease; }
+.sidebar-toggle:hover, .sidebar-toggle:focus-visible { background: var(--button-hover-bg); opacity: 1; }
 #app.sidebar-hidden .sidebar-toggle { left: -10px; transform: translate(50%, -50%); }
 .avatar { width: 36px; height: 36px; border-radius: 50%; background: #2a2f3d; object-fit: cover; }
 .bubble { max-width: 100%; padding: 10px 12px; border-radius: 12px; line-height: 1.4; white-space: pre-wrap; overflow-wrap: anywhere; word-break: normal; }
@@ -113,7 +113,8 @@ label.small { font-size: 12px; }
 .attachment .thumb { width: 56px; height: 56px; object-fit: cover; border-radius: 6px; border: 1px solid var(--border); }
 .attachment .file-chip { border: 1px solid var(--border); border-radius: 6px; padding: 6px 8px; font-size: 12px; color: var(--muted); cursor: pointer; }
 
-.msg-image { max-width: 50%; border-radius: 8px; border: 1px solid var(--border); display: block; }
+.msg-image { max-width: 50%; border-radius: 8px; border: 1px solid var(--border); display: block; cursor: pointer; transition: transform .15s ease, filter .15s ease, box-shadow .15s ease, border-color .15s ease; will-change: transform, filter; }
+.msg-image:hover { transform: translateY(-1px) scale(1.02); filter: saturate(1.05) brightness(1.05); box-shadow: 0 8px 20px rgba(0,0,0,0.22); border-color: rgba(255,255,255,0.35); }
 
 button { background: var(--button-bg); color: var(--button-fg); border: 1px solid var(--button-border); padding: 8px 10px; border-radius: 8px; cursor: pointer; }
 button:hover { background: var(--button-hover-bg); }
@@ -138,6 +139,13 @@ label.inline input[type="checkbox"] { margin-left: 8px; }
 input[type="text"], input[type="password"], input[type="number"], textarea { background: var(--field-bg); color: var(--text); border: 1px solid var(--field-border); border-radius: 8px; padding: 8px; width: 100%; backdrop-filter: blur(6px) saturate(120%); -webkit-backdrop-filter: blur(6px) saturate(120%); }
 input::placeholder, textarea::placeholder { color: var(--field-placeholder); }
 input:focus, textarea:focus { outline: 2px solid var(--accent-2); outline-offset: 0; border-color: transparent; }
+
+/* Image viewer (lightbox) */
+#image-modal .image-viewer-content { position: relative; background: transparent; border: none; box-shadow: none; padding: 0; display: flex; align-items: center; justify-content: center; }
+#image-modal img { max-width: 92vw; max-height: 92vh; border-radius: 12px; border: 1px solid var(--border); box-shadow: 0 12px 36px rgba(0,0,0,0.45); display: block; }
+#image-modal .image-viewer-actions { position: absolute; left: 50%; bottom: -50px; transform: translateX(-50%); display: flex; gap: 8px; }
+#image-modal .image-viewer-actions button { backdrop-filter: blur(8px) saturate(120%); -webkit-backdrop-filter: blur(8px) saturate(120%); background: var(--button-bg); color: var(--button-fg); border: 1px solid var(--button-border); border-radius: 10px; padding: 8px 12px; box-shadow: 0 6px 24px rgba(0,0,0,0.35); opacity: 0.8; transition: opacity .2s ease, background-color .2s ease; }
+#image-modal .image-viewer-actions button:hover, #image-modal .image-viewer-actions button:focus-visible { opacity: 1; }
 
 .avatar-row { display: flex; gap: 24px; align-items: center; }
 

@@ -6,6 +6,7 @@ const state = {
   ui: {
     sending: false,
     attachments: [], // [{ path, mime }]
+    previewImagePath: '',
   },
 };
 
@@ -45,6 +46,10 @@ const elAttachBtn = document.getElementById('btn-attach-image');
 const elAttachPdfBtn = document.getElementById('btn-attach-pdf');
 const elComposerAttachment = document.getElementById('composer-attachment');
 const elComposer = document.querySelector('.composer');
+// Image viewer
+const elImageModal = document.getElementById('image-modal');
+const elImageModalImg = document.getElementById('image-modal-img');
+const elImageDownload = document.getElementById('image-download');
 
 const elPersona = document.getElementById('persona');
 const elApiBase = document.getElementById('api-base');
@@ -342,6 +347,7 @@ function renderMessages() {
       const pic = document.createElement('img');
       pic.className = 'msg-image';
       pic.src = 'file://' + msg.imagePath;
+      try { pic.dataset.path = msg.imagePath; } catch {}
       pic.alt = 'image';
       wrap.appendChild(pic);
     }
@@ -362,6 +368,7 @@ function renderMessages() {
           const pic = document.createElement('img');
           pic.className = 'msg-image';
           pic.src = 'file://' + a.path;
+          try { pic.dataset.path = a.path; } catch {}
           pic.alt = 'image';
           wrap.appendChild(pic);
         }
@@ -440,6 +447,53 @@ elMessages.addEventListener('click', async (e) => {
   }
 });
 
+// Open image viewer on single click
+elMessages.addEventListener('click', (e) => {
+  const target = e.target;
+  if (!(target instanceof HTMLElement)) return;
+  const img = target.closest('img.msg-image');
+  if (!img) return;
+  // Prefer dataset path; fallback to stripping file:// from src
+  let p = img.getAttribute('data-path') || '';
+  if (!p) {
+    const src = img.getAttribute('src') || '';
+    if (src.startsWith('file://')) p = src.replace('file://', '');
+  }
+  if (!p) return;
+  openImageModal(p);
+});
+
+function openImageModal(absPath) {
+  try {
+    state.ui.previewImagePath = absPath;
+    if (elImageModalImg) elImageModalImg.src = 'file://' + absPath;
+    if (elImageModal) elImageModal.classList.remove('hidden');
+  } catch {}
+}
+
+function closeImageModal() {
+  try {
+    if (elImageModal) elImageModal.classList.add('hidden');
+    state.ui.previewImagePath = '';
+    if (elImageModalImg) elImageModalImg.src = '';
+  } catch {}
+}
+
+// Close when clicking outside content
+elImageModal?.addEventListener('mousedown', (e) => {
+  if (e.target === elImageModal) closeImageModal();
+});
+// Close on Escape
+window.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && elImageModal && !elImageModal.classList.contains('hidden')) closeImageModal();
+});
+// Download button
+elImageDownload?.addEventListener('click', async () => {
+  const p = state.ui.previewImagePath;
+  if (!p) return;
+  try { await window.api.saveCopy(p); } catch {}
+});
+
 function formatTime(ts) {
   try {
     if (!ts) return '';
@@ -453,14 +507,14 @@ async function onSend() {
   const text = elInput.value.trim();
   const attach = state.ui.attachments;
   if (state.ui.sending) return;
-  if (!text && !(attach && attach.length)) return; // nothing to send
   state.ui.sending = true;
   elSend.disabled = true;
   // Clear input immediately and keep focus
   elInput.value = '';
   elInput.focus();
   // Optimistically render user message (with attachments if any)
-  appendOptimisticUser(text, attach);
+  const hasContent = !!text || (attach && attach.length);
+  if (hasContent) appendOptimisticUser(text, attach);
   // Recalculate composer height after clearing input
   try { autoResizeComposer(); } catch {}
   // Show typing indicator and placeholder
@@ -510,6 +564,7 @@ function appendOptimisticUser(text, attachments) {
         const pic = document.createElement('img');
         pic.className = 'msg-image';
         pic.src = 'file://' + a.path;
+        try { pic.dataset.path = a.path; } catch {}
         pic.alt = 'image';
         wrap.appendChild(pic);
       }
@@ -966,6 +1021,25 @@ elVibrancySidebarStrength?.addEventListener('input', () => {
 
 init();
 
+// Close sidebar when clicking outside of it
+document.addEventListener('mousedown', (e) => {
+  try {
+    const app = document.getElementById('app');
+    const sidebar = document.querySelector('.sidebar');
+    const toggle = document.getElementById('btn-sidebar-toggle');
+    if (!app || !sidebar) return;
+    // Only when sidebar is open
+    if (app.classList.contains('sidebar-hidden')) return;
+    const target = e.target;
+    if (!(target instanceof Element)) return;
+    // Ignore clicks inside sidebar or on the toggle button
+    if (target.closest('.sidebar')) return;
+    if (toggle && target.closest('#btn-sidebar-toggle')) return;
+    // Clicked outside: close
+    toggleSidebar();
+  } catch {}
+});
+
 // Attachments handling
 function detectMimeFromPath(p) {
   const lower = String(p || '').toLowerCase();
@@ -1029,7 +1103,13 @@ function renderAttachment() {
 function clearAttachments() {
   state.ui.attachments = [];
   renderAttachment();
-  try { autoResizeComposer(); } catch {}
+  try {
+    // Reset composer to default height and re-enable autosize
+    state.ui.manualComposer = false;
+    if (elChat) elChat.style.setProperty('--composer-height', '140px');
+    if (elInput) elInput.style.height = '';
+    autoResizeComposer();
+  } catch {}
 }
 
 function removeAttachmentAt(i) {
@@ -1038,7 +1118,15 @@ function removeAttachmentAt(i) {
   arr.splice(i, 1);
   state.ui.attachments = arr;
   renderAttachment();
-  try { autoResizeComposer(); } catch {}
+  try {
+    if (!state.ui.attachments.length) {
+      // Last one removed: reset to default height
+      state.ui.manualComposer = false;
+      if (elChat) elChat.style.setProperty('--composer-height', '140px');
+      if (elInput) elInput.style.height = '';
+    }
+    autoResizeComposer();
+  } catch {}
 }
 
 async function onPickImage() {
