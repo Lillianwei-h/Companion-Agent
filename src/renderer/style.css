@@ -103,6 +103,11 @@ label.small { font-size: 12px; }
 .attachment .actions { margin-left: auto; }
 .attachment .actions button { padding: 6px 8px; }
 
+/* Multi-attachment list */
+.attachment-list { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.attachment .thumb { width: 56px; height: 56px; object-fit: cover; border-radius: 6px; border: 1px solid var(--border); }
+.attachment .file-chip { border: 1px solid var(--border); border-radius: 6px; padding: 6px 8px; font-size: 12px; color: var(--muted); cursor: pointer; }
+
 .msg-image { max-width: 88%; border-radius: 8px; border: 1px solid var(--border); display: block; }
 
 button { background: var(--button-bg); color: var(--button-fg); border: 1px solid var(--button-border); padding: 8px 10px; border-radius: 8px; cursor: pointer; }

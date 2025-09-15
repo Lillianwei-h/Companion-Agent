@@ -194,8 +194,19 @@ async function callChat({ settings, conversation, memory }) {
     for (const m of msgs) {
       const label = m.role === 'assistant' ? (names.model + ':') : (names.user + ':');
       const ts = m.timestamp ? `[${formatTs(m.timestamp)}] ` : '';
-      const text = `${label} ${ts}${m.content || ''}`.trim();
+      const text = `${ts} ${label} ${m.content || ''}`.trim();
       if (text) parts.push({ text });
+      // attachments array
+      if (Array.isArray(m.attachments)) {
+        for (const a of m.attachments) {
+          try {
+            const mime = a?.mime || detectMimeFromPath(a?.path || '');
+            if (!a?.path) continue;
+            const data = fs.readFileSync(a.path, { encoding: 'base64' });
+            parts.push({ inlineData: { mimeType: mime, data } });
+          } catch {}
+        }
+      }
       if (m.imagePath) {
         try {
           const mime = m.imageMime || detectMimeFromPath(m.imagePath);
@@ -211,7 +222,7 @@ async function callChat({ settings, conversation, memory }) {
       }
     }
     const latest = msgs[msgs.length - 1];
-    const prompt = latest?.role === 'user' ? '[请继续回复消息]' : '[请继续你的上一条消息]';
+    const prompt = latest?.role === 'user' ? '[对话内容结束]\nNote: [请继续回复消息，你回复时不需要带上姓名和时间戳。只要回复你说的话即可。]' : '[对话内容结束]\nNote: [请继续你的上一条消息，你回复时不需要带上姓名和时间戳。只要回复你说的话即可。]\n';
     parts.push({ text: prompt });
     return await geminiGenerateWithParts({ settings, parts });
   } else {
@@ -275,8 +286,18 @@ async function proactiveCheck({ settings, conversation, memory, now }) {
     for (const m of recent) {
       const label = m.role === 'assistant' ? (names.model + ':') : (names.user + ':');
       const ts = m.timestamp ? `[${formatTs(m.timestamp)}] ` : '';
-      const text = `${label} ${ts}${m.content || ''}`.trim();
+      const text = `${ts} ${label} ${m.content || ''}`.trim();
       if (text) parts.push({ text });
+      if (Array.isArray(m.attachments)) {
+        for (const a of m.attachments) {
+          try {
+            const mime = a?.mime || detectMimeFromPath(a?.path || '');
+            if (!a?.path) continue;
+            const data = fs.readFileSync(a.path, { encoding: 'base64' });
+            parts.push({ inlineData: { mimeType: mime, data } });
+          } catch {}
+        }
+      }
       if (m.imagePath) {
         try {
           const mime = m.imageMime || detectMimeFromPath(m.imagePath);
@@ -291,11 +312,11 @@ async function proactiveCheck({ settings, conversation, memory, now }) {
         } catch {}
       }
     }
-    let instruction = '';
+    let instruction = '[对话内容结束]\nNote:\n';
     if (recent.length <= 2) {
-      instruction = `[提醒] 现在的时间是 ${typeof now === 'string' ? now : now.toLocaleString()} 如果你发现${settings?.ui?.names?.user || 'User'}一段时间没有回复你，你要主动给${settings?.ui?.names?.user || 'User'}发消息。如果你想主动联系${settings?.ui?.names?.user || 'User'}，也可以直接给${settings?.ui?.names?.user || 'User'}发消息。如果你决定不发信息，请回复 SKIP；若需要，请以 SEND: <消息> 格式输出。`;
+      instruction = `[提醒] 现在的时间是 ${typeof now === 'string' ? now : now.toLocaleString()} 如果你发现${settings?.ui?.names?.user || 'User'}一段时间没有回复你，你要主动给${settings?.ui?.names?.user || 'User'}发消息。如果你想主动联系${settings?.ui?.names?.user || 'User'}，也可以直接给${settings?.ui?.names?.user || 'User'}发消息。如果你决定不发信息，请回复 SKIP；若需要，请以 SEND: <消息> 格式输出。你回复时不需要带上姓名和时间戳。\n`;
     } else {
-      instruction = `[提醒] 现在的时间是 ${typeof now === 'string' ? now : now.toLocaleString()} 。如果你想主动联系${settings?.ui?.names?.user || 'User'}，也可以直接给${settings?.ui?.names?.user || 'User'}发消息。如果你决定不发信息，请回复 SKIP；若需要，请以 SEND: <消息> 格式输出。`;
+      instruction = `[提醒] 现在的时间是 ${typeof now === 'string' ? now : now.toLocaleString()} 。如果你想主动联系${settings?.ui?.names?.user || 'User'}，也可以直接给${settings?.ui?.names?.user || 'User'}发消息。如果你决定不发信息，请回复 SKIP；若需要，请以 SEND: <消息> 格式输出。你回复时不需要带上姓名和时间戳。\n`;
     }
     parts.push({ text: instruction });
     content = await geminiGenerateWithParts({ settings, parts });
@@ -345,6 +366,16 @@ async function summarizeConversation({ settings, conversation }) {
       const text = `${label} ${ts}${m.content || ''}`.trim();
       if (text) parts.push({ text });
       // Inline attachments if present
+      if (Array.isArray(m.attachments)) {
+        for (const a of m.attachments) {
+          try {
+            const mime = a?.mime || detectMimeFromPath(a?.path || '');
+            if (!a?.path) continue;
+            const data = fs.readFileSync(a.path, { encoding: 'base64' });
+            parts.push({ inlineData: { mimeType: mime, data } });
+          } catch (e) { /* ignore read errors */ }
+        }
+      }
       if (m.imagePath) {
         try {
           const mime = m.imageMime || detectMimeFromPath(m.imagePath);

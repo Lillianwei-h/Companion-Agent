@@ -5,7 +5,7 @@ const state = {
   memory: { items: [] },
   ui: {
     sending: false,
-    attachment: null, // { path, mime }
+    attachments: [], // [{ path, mime }]
   },
 };
 
@@ -21,6 +21,7 @@ const elSummarize = document.getElementById('btn-summarize');
 const elExportMenuBtn = document.getElementById('btn-export-menu');
 const elExportDropdown = document.getElementById('export-dropdown');
 const elExportIncludeTs = document.getElementById('export-include-ts');
+const elExportIncludeFiles = document.getElementById('export-include-files');
 const elDeleteCurrent = document.getElementById('btn-delete-current');
 const elSidebarToggle = document.getElementById('btn-sidebar-toggle');
 
@@ -335,6 +336,26 @@ function renderMessages() {
       pic.alt = 'image';
       wrap.appendChild(pic);
     }
+    // Optional attachments array
+    if (Array.isArray(msg.attachments)) {
+      for (const a of msg.attachments) {
+        if (!a?.path) continue;
+        if (a.mime === 'application/pdf' || String(a.path).toLowerCase().endsWith('.pdf')) {
+          const tag = document.createElement('div');
+          tag.style.fontSize = '12px';
+          tag.style.color = 'var(--muted)';
+          const name = (a.path || '').split(/[\\/]/).pop();
+          tag.textContent = `📄 PDF 附件${name ? ' · ' + name : ''}`;
+          wrap.appendChild(tag);
+        } else {
+          const pic = document.createElement('img');
+          pic.className = 'msg-image';
+          pic.src = 'file://' + a.path;
+          pic.alt = 'image';
+          wrap.appendChild(pic);
+        }
+      }
+    }
     // Optional PDF content (show a small tag with file name)
     if (msg.pdfPath) {
       const tag = document.createElement('div');
@@ -417,15 +438,15 @@ function formatTime(ts) {
 
 async function onSend() {
   const text = elInput.value.trim();
-  const attach = state.ui.attachment;
+  const attach = state.ui.attachments;
   if (state.ui.sending) return;
-  if (!text && !attach) return; // nothing to send
+  if (!text && !(attach && attach.length)) return; // nothing to send
   state.ui.sending = true;
   elSend.disabled = true;
   // Clear input immediately and keep focus
   elInput.value = '';
   elInput.focus();
-  // Optimistically render user message (with image if any)
+  // Optimistically render user message (with attachments if any)
   appendOptimisticUser(text, attach);
   // Recalculate composer height after clearing input
   try { autoResizeComposer(); } catch {}
@@ -433,12 +454,8 @@ async function onSend() {
   startTypingPlaceholder();
   try {
     const payload = { conversationId: state.currentId, userText: text };
-    if (attach?.path) {
-      if (attach.mime === 'application/pdf') {
-        payload.pdfPath = attach.path; payload.pdfMime = attach.mime;
-      } else {
-        payload.imagePath = attach.path; if (attach.mime) payload.imageMime = attach.mime;
-      }
+    if (Array.isArray(attach) && attach.length) {
+      payload.attachments = attach.map(a => ({ path: a.path, mime: a.mime }));
     }
     await window.api.sendMessage(payload);
     state.conversationsStore = await window.api.listConversations();
@@ -453,11 +470,11 @@ async function onSend() {
   } finally {
     state.ui.sending = false;
     elSend.disabled = false;
-    clearAttachment();
+    clearAttachments();
   }
 }
 
-function appendOptimisticUser(text, attachment) {
+function appendOptimisticUser(text, attachments) {
   const row = document.createElement('div');
   row.className = 'message user';
   const img = document.createElement('img');
@@ -466,21 +483,23 @@ function appendOptimisticUser(text, attachment) {
   if (src) img.src = src; else img.alt = '👤';
   const wrap = document.createElement('div');
   wrap.className = 'bubble-wrap';
-  // Optional attachment (optimistic)
-  if (attachment?.path) {
-    if (attachment.mime === 'application/pdf') {
-      const fileTag = document.createElement('div');
-      fileTag.style.fontSize = '12px';
-      fileTag.style.color = 'var(--muted)';
-      const name = (attachment.path || '').split(/[\\/]/).pop();
-      fileTag.textContent = `📄 已附加 PDF${name ? ' · ' + name : ''}`;
-      wrap.appendChild(fileTag);
-    } else {
-      const pic = document.createElement('img');
-      pic.className = 'msg-image';
-      pic.src = 'file://' + attachment.path;
-      pic.alt = 'image';
-      wrap.appendChild(pic);
+  // Optional attachments (optimistic)
+  if (Array.isArray(attachments) && attachments.length) {
+    for (const a of attachments) {
+      if (a?.mime === 'application/pdf') {
+        const fileTag = document.createElement('div');
+        fileTag.style.fontSize = '12px';
+        fileTag.style.color = 'var(--muted)';
+        const name = (a.path || '').split(/[\\/]/).pop();
+        fileTag.textContent = `📄 已附加 PDF${name ? ' · ' + name : ''}`;
+        wrap.appendChild(fileTag);
+      } else if (a?.path) {
+        const pic = document.createElement('img');
+        pic.className = 'msg-image';
+        pic.src = 'file://' + a.path;
+        pic.alt = 'image';
+        wrap.appendChild(pic);
+      }
     }
   }
   // Text bubble (if any)
@@ -822,14 +841,21 @@ elExportDropdown?.addEventListener('click', async (e) => {
   if (!action) return;
   hideExportMenu();
   const includeTs = !!elExportIncludeTs?.checked;
-  if (action === 'current-json') return onExport('json', includeTs);
-  if (action === 'current-md') return onExport('md', includeTs);
-  if (action === 'all-json') return onExportAll('json', includeTs);
-  if (action === 'all-md') return onExportAll('md', includeTs);
+  const includeFiles = !!elExportIncludeFiles?.checked;
+  if (action === 'current-json') return onExport('json', includeTs, includeFiles);
+  if (action === 'current-md') return onExport('md', includeTs, includeFiles);
+  if (action === 'all-json') return onExportAll('json', includeTs, includeFiles);
+  if (action === 'all-md') return onExportAll('md', includeTs, includeFiles);
 });
 elExportIncludeTs?.addEventListener('change', async () => {
   try {
     const nextUi = { ...(state.settings.ui || {}), exportIncludeTimestamp: !!elExportIncludeTs.checked };
+    state.settings = await window.api.updateSettings({ ui: nextUi });
+  } catch {}
+});
+elExportIncludeFiles?.addEventListener('change', async () => {
+  try {
+    const nextUi = { ...(state.settings.ui || {}), exportIncludeAttachments: !!elExportIncludeFiles.checked };
     state.settings = await window.api.updateSettings({ ui: nextUi });
   } catch {}
 });
@@ -920,61 +946,75 @@ function detectMimeFromPath(p) {
 
 function renderAttachment() {
   if (!elComposerAttachment) return;
-  const a = state.ui.attachment;
-  if (!a?.path) {
+  const arr = state.ui.attachments || [];
+  if (!arr.length) {
     elComposerAttachment.classList.add('hidden');
     elComposerAttachment.innerHTML = '';
     return;
   }
-  const url = 'file://' + a.path;
   elComposerAttachment.classList.remove('hidden');
   elComposerAttachment.innerHTML = '';
-  const img = document.createElement('img');
-  img.src = url;
+  const list = document.createElement('div');
+  list.className = 'attachment-list';
+  arr.forEach((a, idx) => {
+    if (a?.mime === 'application/pdf') {
+      const chip = document.createElement('div');
+      chip.className = 'file-chip';
+      chip.title = a.path;
+      chip.textContent = '📄 ' + ((a.path || '').split(/[\\/]/).pop() || 'PDF');
+      chip.addEventListener('click', () => removeAttachmentAt(idx));
+      list.appendChild(chip);
+    } else if (a?.path) {
+      const img = document.createElement('img');
+      img.className = 'thumb';
+      img.src = 'file://' + a.path;
+      img.alt = 'image';
+      img.title = a.path;
+      img.addEventListener('click', () => removeAttachmentAt(idx));
+      list.appendChild(img);
+    }
+  });
   const meta = document.createElement('div');
   meta.className = 'meta';
-  meta.innerHTML = `<div>将发送图片</div><div class="muted">${a.mime || ''}</div>`;
-  // Override meta text to include filename and handle PDF label
-  {
-    const fileName = (a.path || '').split(/[\\/]/).pop();
-    const kind = a.mime === 'application/pdf' ? '将发送 PDF' : '将发送图片';
-    meta.innerHTML = `<div>${kind}${fileName ? ' · ' + fileName : ''}</div><div class=\"muted\">${a.mime || ''}</div>`;
-  }
+  meta.style.minWidth = '160px';
+  meta.style.display = 'flex';
+  meta.style.flexDirection = 'column';
+  meta.style.gap = '2px';
+  meta.innerHTML = `<div>将发送 ${arr.length} 个附件</div><div class=\"muted\">点击单项移除</div>`;
   const actions = document.createElement('div');
   actions.className = 'actions';
   const btn = document.createElement('button');
-  btn.textContent = '移除';
-  btn.addEventListener('click', clearAttachment);
+  btn.textContent = '清空';
+  btn.addEventListener('click', clearAttachments);
   actions.appendChild(btn);
-  if (a.mime === 'application/pdf') {
-    const box = document.createElement('div');
-    box.style.width = '56px';
-    box.style.height = '56px';
-    box.style.border = '1px solid var(--border)';
-    box.style.borderRadius = '6px';
-    box.style.display = 'flex';
-    box.style.alignItems = 'center';
-    box.style.justifyContent = 'center';
-    box.textContent = '📄';
-    elComposerAttachment.appendChild(box);
-  } else {
-    elComposerAttachment.appendChild(img);
-  }
+  elComposerAttachment.appendChild(list);
   elComposerAttachment.appendChild(meta);
   elComposerAttachment.appendChild(actions);
 }
 
-function clearAttachment() {
-  state.ui.attachment = null;
+function clearAttachments() {
+  state.ui.attachments = [];
+  renderAttachment();
+  try { autoResizeComposer(); } catch {}
+}
+
+function removeAttachmentAt(i) {
+  const arr = state.ui.attachments || [];
+  if (i < 0 || i >= arr.length) return;
+  arr.splice(i, 1);
+  state.ui.attachments = arr;
   renderAttachment();
   try { autoResizeComposer(); } catch {}
 }
 
 async function onPickImage() {
   try {
-    const file = await window.api.pickImage();
-    if (!file) return;
-    state.ui.attachment = { path: file, mime: detectMimeFromPath(file) };
+    const sel = await window.api.pickImage();
+    if (!sel) return;
+    const files = Array.isArray(sel) ? sel : [sel];
+    const list = state.ui.attachments || [];
+    files.forEach(fp => { if (fp) list.push({ path: fp, mime: detectMimeFromPath(fp) }); });
+    state.ui.attachments = list;
     renderAttachment();
     try { autoResizeComposer(); } catch {}
   } catch (e) {
@@ -986,9 +1026,12 @@ elAttachBtn?.addEventListener('click', onPickImage);
 
 async function onPickPdf() {
   try {
-    const file = await window.api.pickPdf();
-    if (!file) return;
-    state.ui.attachment = { path: file, mime: 'application/pdf' };
+    const sel = await window.api.pickPdf();
+    if (!sel) return;
+    const files = Array.isArray(sel) ? sel : [sel];
+    const list = state.ui.attachments || [];
+    files.forEach(fp => { if (fp) list.push({ path: fp, mime: 'application/pdf' }); });
+    state.ui.attachments = list;
     renderAttachment();
     try { autoResizeComposer(); } catch {}
   } catch (e) {
@@ -1260,11 +1303,12 @@ function startInlineTitleEdit() {
   input.addEventListener('keydown', onKey);
 }
 
-async function onExport(format, includeTs) {
+async function onExport(format, includeTs, includeFiles) {
   if (!state.currentId) return alert('没有选中的对话');
   try {
     const useTs = includeTs === undefined ? (!!state.settings?.ui?.exportIncludeTimestamp ?? true) : !!includeTs;
-    const res = await window.api.exportConversation({ conversationId: state.currentId, format, includeTimestamp: useTs });
+    const useFiles = includeFiles === undefined ? (!!state.settings?.ui?.exportIncludeAttachments ?? true) : !!includeFiles;
+    const res = await window.api.exportConversation({ conversationId: state.currentId, format, includeTimestamp: useTs, includeAttachments: useFiles });
     if (res?.ok) {
       alert(`导出成功：\n${res.path}`);
     } else if (!res?.canceled) {
@@ -1275,10 +1319,11 @@ async function onExport(format, includeTs) {
   }
 }
 
-async function onExportAll(format, includeTs) {
+async function onExportAll(format, includeTs, includeFiles) {
   try {
     const useTs = includeTs === undefined ? (!!state.settings?.ui?.exportIncludeTimestamp ?? true) : !!includeTs;
-    const res = await window.api.exportAllConversations({ format, includeTimestamp: useTs });
+    const useFiles = includeFiles === undefined ? (!!state.settings?.ui?.exportIncludeAttachments ?? true) : !!includeFiles;
+    const res = await window.api.exportAllConversations({ format, includeTimestamp: useTs, includeAttachments: useFiles });
     if (res?.ok) {
       alert(`导出成功：\n${res.path}`);
     } else if (!res?.canceled) {

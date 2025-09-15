@@ -12,7 +12,8 @@
     "pack": "echo 'configure electron-builder if needed'"
   },
   "dependencies": {
-    "@google/genai": "^0.3.1"
+    "@google/genai": "^0.3.1",
+    "archiver": "^6.0.1"
   },
   "devDependencies": {
     "electron": "^30.0.0"

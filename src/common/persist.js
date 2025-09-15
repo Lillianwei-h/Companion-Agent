@@ -31,6 +31,15 @@ function ensureStores(app) {
   }
 }
 
+function getStoreRoot() {
+  return rootDir;
+}
+
+function ensureDir(p) {
+  if (!p) return;
+  try { if (!fs.existsSync(p)) fs.mkdirSync(p, { recursive: true }); } catch (e) { /* ignore */ }
+}
+
 function defaultSettings() {
   return {
     persona: '你是一位温暖、细心、可靠的日常陪伴型助理。你会尊重我的节奏，不过度打扰；当你觉得我可能需要提醒、鼓励或灵感时，再主动联系我。',
@@ -69,6 +78,7 @@ function defaultSettings() {
         model: '小助手',
       },
       exportIncludeTimestamp: true,
+      exportIncludeAttachments: true,
     },
   };
 }
@@ -117,7 +127,7 @@ const Stores = {
   },
 };
 
-module.exports = { ensureStores, Stores };
+module.exports = { ensureStores, Stores, getStoreRoot, ensureDir };
 
 function sanitizeConversations(input) {
   try {
