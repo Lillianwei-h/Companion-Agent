@@ -108,6 +108,7 @@ function detectMimeFromPath(p) {
     if (lower.endsWith('.gif')) return 'image/gif';
     if (lower.endsWith('.webp')) return 'image/webp';
     if (lower.endsWith('.bmp')) return 'image/bmp';
+    if (lower.endsWith('.pdf')) return 'application/pdf';
     return 'application/octet-stream';
   } catch { return 'application/octet-stream'; }
 }
@@ -139,6 +140,35 @@ async function callVision({ settings, conversation, memory, imagePath, imageMime
   return await geminiGenerateWithParts({ settings, parts });
 }
 
+// Gemini: inline PDF analysis/summarization
+async function callPdf({ settings, conversation, memory, pdfPath, userText }) {
+  if (!isGeminiBase(settings?.api?.baseUrl)) {
+    throw new Error('当前 API Base 非 Gemini，暂不支持 PDF 发送');
+  }
+  if (!pdfPath) throw new Error('缺少 PDF 路径');
+  const mime = 'application/pdf';
+  const b64 = fs.readFileSync(pdfPath, { encoding: 'base64' });
+  const persona = settings?.persona || '';
+  const systemPrompt = buildSystemPrompt(persona, memory);
+  const limit = Math.max(1, Math.min(500, Number(settings?.api?.historyMessages ?? 25)));
+  const msgs = pickRecentMessages(conversation.messages, limit);
+  const names = { user: (settings?.ui?.names?.user || 'User'), model: (settings?.ui?.names?.model || 'You') };
+  let context = `SYSTEM:\n${systemPrompt}\n[以下是近期对话]\n`;
+  for (const m of msgs) {
+    const label = m.role === 'assistant' ? (names.model + ':') : (names.user + ':');
+    const ts = m.timestamp ? `[${formatTs(m.timestamp)}] ` : '';
+    context += `${label} ${ts}${m.content || ''}\n`;
+  }
+  context += '\n[对话结束]\n请参考以上背景信息，结合文档进行回答。';
+  const prompt = (userText && userText.trim()) ? userText.trim() : '请总结该 PDF 文档的要点，并给出关键结论。';
+  const parts = [
+    { text: context },
+    { inlineData: { mimeType: mime, data: b64 } },
+    { text: prompt },
+  ];
+  return await geminiGenerateWithParts({ settings, parts });
+}
+
 function formatTs(ts) {
   try { return new Date(ts).toLocaleString(); } catch { return ''; }
 }
@@ -157,13 +187,33 @@ async function callChat({ settings, conversation, memory }) {
   const limit = Math.max(1, Math.min(500, Number(settings?.api?.historyMessages ?? 25)));
   const msgs = pickRecentMessages(conversation.messages, limit);
   if (isGeminiBase(settings?.api?.baseUrl)) {
+    // Build multimodal parts from conversation, including attachments
+    const names = { user: (settings?.ui?.names?.user || 'User'), model: (settings?.ui?.names?.model || 'You') };
+    const parts = [];
+    parts.push({ text: `SYSTEM:\n${systemPrompt}` });
+    for (const m of msgs) {
+      const label = m.role === 'assistant' ? (names.model + ':') : (names.user + ':');
+      const ts = m.timestamp ? `[${formatTs(m.timestamp)}] ` : '';
+      const text = `${label} ${ts}${m.content || ''}`.trim();
+      if (text) parts.push({ text });
+      if (m.imagePath) {
+        try {
+          const mime = m.imageMime || detectMimeFromPath(m.imagePath);
+          const data = fs.readFileSync(m.imagePath, { encoding: 'base64' });
+          parts.push({ inlineData: { mimeType: mime, data } });
+        } catch {}
+      }
+      if (m.pdfPath) {
+        try {
+          const data = fs.readFileSync(m.pdfPath, { encoding: 'base64' });
+          parts.push({ inlineData: { mimeType: 'application/pdf', data } });
+        } catch {}
+      }
+    }
     const latest = msgs[msgs.length - 1];
-    const history = [
-      { role: 'user', parts: [{ text: `SYSTEM:\n${systemPrompt}` }] },
-      ...msgs.map(toGeminiHistoryItem),
-    ];
     const prompt = latest?.role === 'user' ? '[请继续回复消息]' : '[请继续你的上一条消息]';
-    return await geminiChatSend({ settings, history, message: prompt });
+    parts.push({ text: prompt });
+    return await geminiGenerateWithParts({ settings, parts });
   } else {
     const names = { user: (settings?.ui?.names?.user || 'User'), model: (settings?.ui?.names?.model || 'You') };
     const messages = [
@@ -219,17 +269,36 @@ async function proactiveCheck({ settings, conversation, memory, now }) {
   let content = '';
   if (isGeminiBase(settings?.api?.baseUrl)) {
     const recent = pickRecentMessages(conversation.messages, limit);
-    const history = [
-      { role: 'user', parts: [{ text: `SYSTEM:\n${systemPrompt}` }] },
-      ...recent.map(toGeminiHistoryItem),
-    ];
+    const names = { user: (settings?.ui?.names?.user || 'User'), model: (settings?.ui?.names?.model || 'You') };
+    const parts = [];
+    parts.push({ text: `SYSTEM:\n${systemPrompt}\n[以下是近期对话]\n` });
+    for (const m of recent) {
+      const label = m.role === 'assistant' ? (names.model + ':') : (names.user + ':');
+      const ts = m.timestamp ? `[${formatTs(m.timestamp)}] ` : '';
+      const text = `${label} ${ts}${m.content || ''}`.trim();
+      if (text) parts.push({ text });
+      if (m.imagePath) {
+        try {
+          const mime = m.imageMime || detectMimeFromPath(m.imagePath);
+          const data = fs.readFileSync(m.imagePath, { encoding: 'base64' });
+          parts.push({ inlineData: { mimeType: mime, data } });
+        } catch {}
+      }
+      if (m.pdfPath) {
+        try {
+          const data = fs.readFileSync(m.pdfPath, { encoding: 'base64' });
+          parts.push({ inlineData: { mimeType: 'application/pdf', data } });
+        } catch {}
+      }
+    }
     let instruction = '';
-    if (length(history) <= 2) {
+    if (recent.length <= 2) {
       instruction = `[提醒] 现在的时间是 ${typeof now === 'string' ? now : now.toLocaleString()} 如果你发现${settings?.ui?.names?.user || 'User'}一段时间没有回复你，你要主动给${settings?.ui?.names?.user || 'User'}发消息。如果你想主动联系${settings?.ui?.names?.user || 'User'}，也可以直接给${settings?.ui?.names?.user || 'User'}发消息。如果你决定不发信息，请回复 SKIP；若需要，请以 SEND: <消息> 格式输出。`;
     } else {
       instruction = `[提醒] 现在的时间是 ${typeof now === 'string' ? now : now.toLocaleString()} 。如果你想主动联系${settings?.ui?.names?.user || 'User'}，也可以直接给${settings?.ui?.names?.user || 'User'}发消息。如果你决定不发信息，请回复 SKIP；若需要，请以 SEND: <消息> 格式输出。`;
     }
-    content = await geminiChatSend({ settings, history, message: instruction });
+    parts.push({ text: instruction });
+    content = await geminiGenerateWithParts({ settings, parts });
   } else {
     const names = { user: (settings?.ui?.names?.user || 'User'), model: (settings?.ui?.names?.model || 'You') };
     const messages = [
@@ -267,8 +336,32 @@ async function summarizeConversation({ settings, conversation }) {
   const limit = Math.max(1, Math.min(1000, Number(settings?.api?.summaryHistoryMessages ?? 100)));
   if (isGeminiBase(settings?.api?.baseUrl)) {
     const recent = pickRecentMessages(conversation.messages, limit);
-    const history = recent.map(toGeminiHistoryItem);
-    return await geminiChatSend({ settings, history, message: systemPrompt });
+    const names = { user: (settings?.ui?.names?.user || 'User'), model: (settings?.ui?.names?.model || 'You') };
+    const parts = [];
+    parts.push({ text: 'SYSTEM:\n' + systemPrompt + '\n[以下为对话内容，包含可能的图片和 PDF 附件]\n' });
+    for (const m of recent) {
+      const label = m.role === 'assistant' ? (names.model + ':') : (names.user + ':');
+      const ts = m.timestamp ? `[${formatTs(m.timestamp)}] ` : '';
+      const text = `${label} ${ts}${m.content || ''}`.trim();
+      if (text) parts.push({ text });
+      // Inline attachments if present
+      if (m.imagePath) {
+        try {
+          const mime = m.imageMime || detectMimeFromPath(m.imagePath);
+          const data = fs.readFileSync(m.imagePath, { encoding: 'base64' });
+          parts.push({ inlineData: { mimeType: mime, data } });
+        } catch (e) { /* ignore read errors */ }
+      }
+      if (m.pdfPath) {
+        try {
+          const data = fs.readFileSync(m.pdfPath, { encoding: 'base64' });
+          parts.push({ inlineData: { mimeType: 'application/pdf', data } });
+        } catch (e) { /* ignore read errors */ }
+      }
+    }
+    // Ask to produce final summary
+    parts.push({ text: '请基于以上对话文本与附件，输出记忆条目。' });
+    return await geminiGenerateWithParts({ settings, parts });
   } else {
     const names = { user: (settings?.ui?.names?.user || 'User'), model: (settings?.ui?.names?.model || 'You') };
     const messages = [
@@ -312,4 +405,4 @@ async function testApi({ settings }) {
   }
 }
 
-module.exports = { callChat, proactiveCheck, summarizeConversation, testApi, initialGreeting, callVision };
+module.exports = { callChat, proactiveCheck, summarizeConversation, testApi, initialGreeting, callVision, callPdf };

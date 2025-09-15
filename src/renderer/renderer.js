@@ -40,6 +40,7 @@ const elLogsClear = document.getElementById('btn-logs-clear');
 const elChat = document.querySelector('.chat');
 const elChatResizer = document.getElementById('chat-resize');
 const elAttachBtn = document.getElementById('btn-attach-image');
+const elAttachPdfBtn = document.getElementById('btn-attach-pdf');
 const elComposerAttachment = document.getElementById('composer-attachment');
 const elComposer = document.querySelector('.composer');
 
@@ -334,6 +335,15 @@ function renderMessages() {
       pic.alt = 'image';
       wrap.appendChild(pic);
     }
+    // Optional PDF content (show a small tag with file name)
+    if (msg.pdfPath) {
+      const tag = document.createElement('div');
+      tag.style.fontSize = '12px';
+      tag.style.color = 'var(--muted)';
+      const name = (msg.pdfPath || '').split(/[\\/]/).pop();
+      tag.textContent = `📄 PDF 附件${name ? ' · ' + name : ''}`;
+      wrap.appendChild(tag);
+    }
     const time = document.createElement('div');
     time.className = 'timestamp';
     time.textContent = formatTime(msg.timestamp);
@@ -423,7 +433,13 @@ async function onSend() {
   startTypingPlaceholder();
   try {
     const payload = { conversationId: state.currentId, userText: text };
-    if (attach?.path) { payload.imagePath = attach.path; if (attach.mime) payload.imageMime = attach.mime; }
+    if (attach?.path) {
+      if (attach.mime === 'application/pdf') {
+        payload.pdfPath = attach.path; payload.pdfMime = attach.mime;
+      } else {
+        payload.imagePath = attach.path; if (attach.mime) payload.imageMime = attach.mime;
+      }
+    }
     await window.api.sendMessage(payload);
     state.conversationsStore = await window.api.listConversations();
     stopTypingPlaceholder();
@@ -450,13 +466,22 @@ function appendOptimisticUser(text, attachment) {
   if (src) img.src = src; else img.alt = '👤';
   const wrap = document.createElement('div');
   wrap.className = 'bubble-wrap';
-  // Optional image (optimistic)
+  // Optional attachment (optimistic)
   if (attachment?.path) {
-    const pic = document.createElement('img');
-    pic.className = 'msg-image';
-    pic.src = 'file://' + attachment.path;
-    pic.alt = 'image';
-    wrap.appendChild(pic);
+    if (attachment.mime === 'application/pdf') {
+      const fileTag = document.createElement('div');
+      fileTag.style.fontSize = '12px';
+      fileTag.style.color = 'var(--muted)';
+      const name = (attachment.path || '').split(/[\\/]/).pop();
+      fileTag.textContent = `📄 已附加 PDF${name ? ' · ' + name : ''}`;
+      wrap.appendChild(fileTag);
+    } else {
+      const pic = document.createElement('img');
+      pic.className = 'msg-image';
+      pic.src = 'file://' + attachment.path;
+      pic.alt = 'image';
+      wrap.appendChild(pic);
+    }
   }
   // Text bubble (if any)
   if (text) {
@@ -889,6 +914,7 @@ function detectMimeFromPath(p) {
   if (lower.endsWith('.gif')) return 'image/gif';
   if (lower.endsWith('.webp')) return 'image/webp';
   if (lower.endsWith('.bmp')) return 'image/bmp';
+  if (lower.endsWith('.pdf')) return 'application/pdf';
   return '';
 }
 
@@ -908,13 +934,32 @@ function renderAttachment() {
   const meta = document.createElement('div');
   meta.className = 'meta';
   meta.innerHTML = `<div>将发送图片</div><div class="muted">${a.mime || ''}</div>`;
+  // Override meta text to include filename and handle PDF label
+  {
+    const fileName = (a.path || '').split(/[\\/]/).pop();
+    const kind = a.mime === 'application/pdf' ? '将发送 PDF' : '将发送图片';
+    meta.innerHTML = `<div>${kind}${fileName ? ' · ' + fileName : ''}</div><div class=\"muted\">${a.mime || ''}</div>`;
+  }
   const actions = document.createElement('div');
   actions.className = 'actions';
   const btn = document.createElement('button');
   btn.textContent = '移除';
   btn.addEventListener('click', clearAttachment);
   actions.appendChild(btn);
-  elComposerAttachment.appendChild(img);
+  if (a.mime === 'application/pdf') {
+    const box = document.createElement('div');
+    box.style.width = '56px';
+    box.style.height = '56px';
+    box.style.border = '1px solid var(--border)';
+    box.style.borderRadius = '6px';
+    box.style.display = 'flex';
+    box.style.alignItems = 'center';
+    box.style.justifyContent = 'center';
+    box.textContent = '📄';
+    elComposerAttachment.appendChild(box);
+  } else {
+    elComposerAttachment.appendChild(img);
+  }
   elComposerAttachment.appendChild(meta);
   elComposerAttachment.appendChild(actions);
 }
@@ -938,6 +983,20 @@ async function onPickImage() {
 }
 
 elAttachBtn?.addEventListener('click', onPickImage);
+
+async function onPickPdf() {
+  try {
+    const file = await window.api.pickPdf();
+    if (!file) return;
+    state.ui.attachment = { path: file, mime: 'application/pdf' };
+    renderAttachment();
+    try { autoResizeComposer(); } catch {}
+  } catch (e) {
+    alert('选择 PDF 失败：' + e.message);
+  }
+}
+
+elAttachPdfBtn?.addEventListener('click', onPickPdf);
 
 // Proactive countdown in settings
 function startProactiveCountdown() {
