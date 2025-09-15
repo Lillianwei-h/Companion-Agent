@@ -38,6 +38,7 @@ const elTyping = document.getElementById('typing-indicator');
 const elLogsList = document.getElementById('logs-list');
 const elLogsRefresh = document.getElementById('btn-logs-refresh');
 const elLogsClear = document.getElementById('btn-logs-clear');
+const elMigrateAttachments = document.getElementById('btn-migrate-attachments');
 const elChat = document.querySelector('.chat');
 const elChatResizer = document.getElementById('chat-resize');
 const elAttachBtn = document.getElementById('btn-attach-image');
@@ -346,6 +347,8 @@ function renderMessages() {
           tag.style.color = 'var(--muted)';
           const name = (a.path || '').split(/[\\/]/).pop();
           tag.textContent = `📄 PDF 附件${name ? ' · ' + name : ''}`;
+          tag.style.cursor = 'pointer';
+          tag.addEventListener('click', () => { try { window.api.openPath(a.path); } catch {} });
           wrap.appendChild(tag);
         } else {
           const pic = document.createElement('img');
@@ -363,6 +366,8 @@ function renderMessages() {
       tag.style.color = 'var(--muted)';
       const name = (msg.pdfPath || '').split(/[\\/]/).pop();
       tag.textContent = `📄 PDF 附件${name ? ' · ' + name : ''}`;
+      tag.style.cursor = 'pointer';
+      tag.addEventListener('click', () => { try { window.api.openPath(msg.pdfPath); } catch {} });
       wrap.appendChild(tag);
     }
     const time = document.createElement('div');
@@ -914,6 +919,27 @@ elMemDelete.addEventListener('click', memDelete);
 
 elLogsRefresh?.addEventListener('click', refreshLogs);
 elLogsClear?.addEventListener('click', async () => { await window.api.clearLogs(); await refreshLogs(); });
+elMigrateAttachments?.addEventListener('click', async () => {
+  try {
+    elMigrateAttachments.disabled = true;
+    elMigrateAttachments.textContent = '迁移中...';
+    const res = await window.api.migrateAttachments();
+    if (res?.ok) {
+      alert(`迁移完成：\n复制/移动 ${res.moved || 0} 个文件；\n更新 ${res.updated || 0} 处引用；\n错误 ${res.errors || 0}。`);
+      // Reload store to reflect updated paths
+      state.conversationsStore = await window.api.listConversations();
+      renderConversations();
+      renderMessages();
+    } else {
+      alert('迁移失败：' + (res?.error || '未知错误'));
+    }
+  } catch (e) {
+    alert('迁移异常：' + e.message);
+  } finally {
+    elMigrateAttachments.disabled = false;
+    elMigrateAttachments.textContent = '迁移历史附件';
+  }
+});
 
 // Live preview translucency while sliding
 elVibrancyStrength?.addEventListener('input', () => {

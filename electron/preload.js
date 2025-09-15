@@ -28,6 +28,9 @@ contextBridge.exposeInMainWorld('api', {
   pickImage: () => ipcRenderer.invoke('dialog:pickImage'),
   pickPdf: () => ipcRenderer.invoke('dialog:pickPdf'),
 
+  // Files
+  openPath: (path) => ipcRenderer.invoke('file:open', path),
+
   // Events
   onConversationsUpdated: (cb) => {
     ipcRenderer.on('data:conversations-updated', cb);
@@ -43,6 +46,7 @@ contextBridge.exposeInMainWorld('api', {
   proactiveStatus: () => ipcRenderer.invoke('proactive:status'),
   listLogs: (limit) => ipcRenderer.invoke('logs:list', limit),
   clearLogs: () => ipcRenderer.invoke('logs:clear'),
+  migrateAttachments: () => ipcRenderer.invoke('attachments:migrate'),
 
   // UI state
   setCurrentConversation: (id) => ipcRenderer.invoke('ui:setCurrentConversation', id),

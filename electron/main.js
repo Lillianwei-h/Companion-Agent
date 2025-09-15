@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, Notification, dialog } = require('electron');
+const { app, BrowserWindow, ipcMain, Notification, dialog, shell } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const { ensureStores, Stores, getStoreRoot, ensureDir } = require('../src/common/persist');
@@ -15,7 +15,7 @@ function buildAttachmentRelPath(conversationId, messageId, srcPath, now = new Da
   const y = now.getFullYear();
   const m = pad2(now.getMonth() + 1);
   const base = (srcPath || '').split(/[\\/]/).pop() || 'file';
-  const file = safeFilename(base);
+  const file = typeof normalizeFilename === 'function' ? normalizeFilename(base) : safeFilename(base);
   return require('path').join('attachments', String(y), String(m), String(conversationId || 'conv'), String(messageId || 'msg'), file);
 }
 
@@ -23,7 +23,7 @@ function storeAttachmentFile(conversationId, messageId, srcPath, mime) {
   try {
     if (!srcPath) return null;
     const root = getStoreRoot();
-    const rel = buildAttachmentRelPath(conversationId, messageId, srcPath);
+    let rel = buildAttachmentRelPath(conversationId, messageId, srcPath);
     const pathmod = require('path');
     let abs = pathmod.join(root, rel);
     const dir = pathmod.dirname(abs);
@@ -34,16 +34,92 @@ function storeAttachmentFile(conversationId, messageId, srcPath, mime) {
       const ext = pathmod.extname(abs);
       const name = pathmod.basename(abs, ext);
       let i = 1;
-      while (fsmod.existsSync(pathmod.join(dir, `${name}_${i}${ext}`))) i++;
-      abs = pathmod.join(dir, `${name}_${i}${ext}`);
+      let candidate;
+      do {
+        candidate = pathmod.join(dir, `${name}_${i}${ext}`);
+        i++;
+      } while (fsmod.existsSync(candidate));
+      abs = candidate;
     }
     fsmod.copyFileSync(srcPath, abs);
+    // Recompute rel to reflect final absolute path
+    rel = pathmod.relative(root, abs);
     return { path: abs, mime: mime || '', rel };
   } catch (e) {
     console.error('storeAttachmentFile failed', e);
     return null;
   }
 }
+
+// Attempt to normalize and migrate all historical attachments in conversations.json
+ipcMain.handle('attachments:migrate', async () => {
+  try {
+    const root = getStoreRoot();
+    const store = Stores.conversations.read();
+    let moved = 0, updated = 0, errors = 0;
+    const pathmod = require('path');
+    const fsmod = require('fs');
+
+    for (const conv of (store.conversations || [])) {
+      for (const m of (conv.messages || [])) {
+        const stamp = new Date(m.timestamp || conv.createdAt || Date.now());
+        const processOne = (p, mime) => {
+          try {
+            if (!p || typeof p !== 'string') return null;
+            const src = p;
+            const targetRel = buildAttachmentRelPath(conv.id, m.id, src, stamp);
+            let targetAbs = pathmod.join(root, targetRel);
+            const dir = pathmod.dirname(targetAbs);
+            ensureDir(dir);
+            // If already same normalized path, skip
+            if (pathmod.resolve(src) === pathmod.resolve(targetAbs)) return { path: targetAbs };
+            // Resolve conflicts
+            if (fsmod.existsSync(targetAbs)) {
+              const ext = pathmod.extname(targetAbs);
+              const name = pathmod.basename(targetAbs, ext);
+              let i = 1, cand;
+              do { cand = pathmod.join(dir, `${name}_${i}${ext}`); i++; } while (fsmod.existsSync(cand));
+              targetAbs = cand;
+            }
+            // Copy then unlink if source under store and different path
+            try { fsmod.copyFileSync(src, targetAbs); moved++; } catch (e) { errors++; return null; }
+            const rel = pathmod.relative(root, targetAbs);
+            try {
+              const relSrc = pathmod.relative(root, src);
+              if (!relSrc.startsWith('..') && pathmod.resolve(src) !== pathmod.resolve(targetAbs)) {
+                try { fsmod.unlinkSync(src); } catch {}
+              }
+            } catch {}
+            return { path: targetAbs, rel };
+          } catch (e) { errors++; return null; }
+        };
+
+        // attachments array
+        if (Array.isArray(m.attachments)) {
+          for (let i = 0; i < m.attachments.length; i++) {
+            const a = m.attachments[i] || {};
+            const res = processOne(a.path, a.mime || '');
+            if (res && res.path) { m.attachments[i].path = res.path; updated++; }
+          }
+        }
+        // legacy fields
+        if (m.imagePath) {
+          const res = processOne(m.imagePath, m.imageMime || '');
+          if (res && res.path) { m.imagePath = res.path; updated++; }
+        }
+        if (m.pdfPath) {
+          const res = processOne(m.pdfPath, m.pdfMime || 'application/pdf');
+          if (res && res.path) { m.pdfPath = res.path; updated++; }
+        }
+      }
+    }
+
+    Stores.conversations.write(store);
+    return { ok: true, moved, updated, errors };
+  } catch (e) {
+    return { ok: false, error: e?.message || String(e) };
+  }
+});
 
 function createWindow() {
   const settings = Stores.settings.read() || {};
@@ -575,6 +651,17 @@ ipcMain.handle('logs:clear', async () => {
   return { ok: true };
 });
 
+// Open file with OS default handler
+ipcMain.handle('file:open', async (_evt, filePath) => {
+  try {
+    const res = await shell.openPath(String(filePath || ''));
+    if (res) return { ok: false, error: res };
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e?.message || String(e) };
+  }
+});
+
 function appendLog(entry) {
   try {
     const logs = Stores.logs.read() || { items: [] };
@@ -612,6 +699,8 @@ ipcMain.handle('conversations:export', async (_evt, { conversationId, format, in
     const conv = (store.conversations || []).find(c => c.id === conversationId);
     if (!conv) return { ok: false, error: 'Conversation not found' };
     const wantZip = !!includeAttachments;
+    const settings = Stores.settings.read() || {};
+    const names = { user: settings?.ui?.names?.user || '用户', model: settings?.ui?.names?.model || '助手' };
     if (!wantZip) {
       const ext = String(format).toLowerCase() === 'md' || format === 'markdown' ? 'md' : 'json';
       const defaultName = safeFilename(`${conv.title || '对话'}-${new Date().toISOString().slice(0,16).replace(/[:T]/g,'')}.${ext}`);
@@ -625,7 +714,7 @@ ipcMain.handle('conversations:export', async (_evt, { conversationId, format, in
       if (res.canceled || !res.filePath) return { ok: false, canceled: true };
       const filePath = res.filePath;
       const content = (ext === 'md')
-        ? conversationToMarkdown(conv, !!includeTimestamp)
+        ? conversationToMarkdown(conv, !!includeTimestamp, { names })
         : JSON.stringify(filterConversationTimestamps(conv, !!includeTimestamp), null, 2);
       fs.writeFileSync(filePath, content, 'utf-8');
       return { ok: true, path: filePath };
@@ -651,7 +740,7 @@ ipcMain.handle('conversations:export', async (_evt, { conversationId, format, in
     const files = collectConversationAttachments(conv);
     const pathMap = buildZipRelPathMap(conv, files);
     if (ext === 'md') {
-      const md = conversationToMarkdown(conv, !!includeTimestamp, { attachmentsRelMap: pathMap });
+      const md = conversationToMarkdown(conv, !!includeTimestamp, { attachmentsRelMap: pathMap, names });
       archive.append(md, { name: fileBase });
     } else {
       const convCopy = rewriteConversationPaths(conv, pathMap, !!includeTimestamp);
@@ -678,31 +767,61 @@ function safeFilename(name) {
     .slice(0, 120);
 }
 
+// Normalize a filename for attachments: remove spaces and special chars except underscore; keep sanitized extension
+function normalizeFilename(original) {
+  try {
+    const pathmod = require('path');
+    const extRaw = pathmod.extname(String(original || ''));
+    const baseRaw = pathmod.basename(String(original || ''), extRaw);
+    const base = String(baseRaw).replace(/\s+/g, '').replace(/[^A-Za-z0-9_]+/g, '');
+    const extClean = String(extRaw).replace(/\./g, '').replace(/[^A-Za-z0-9]+/g, '');
+    const name = base || 'file';
+    return name + (extClean ? ('.' + extClean) : '');
+  } catch {
+    return 'file';
+  }
+}
+
 function conversationToMarkdown(conv, includeTs = true, opts = {}) {
   const lines = [];
   lines.push(`# ${conv.title || '对话'}`);
   if (includeTs && conv.createdAt) lines.push(`创建时间: ${new Date(conv.createdAt).toLocaleString()}`);
   lines.push('');
   for (const m of (conv.messages || [])) {
-    const role = m.role === 'user' ? '用户' : (m.role === 'assistant' ? '助手' : (m.role || '系统'));
+    const displayNames = {
+      user: (opts?.names?.user || '用户'),
+      model: (opts?.names?.model || '助手'),
+    };
+    const role = m.role === 'user' ? displayNames.user : (m.role === 'assistant' ? displayNames.model : (m.role || '系统'));
     const ts = m.timestamp ? new Date(m.timestamp).toLocaleString() : '';
     lines.push(includeTs ? `## ${role} · ${ts}`.trim() : `## ${role}`);
     lines.push('');
     lines.push(m.content || '');
-    // attachments listing when provided
+    // Inline/link attachments when rel map provided
     const relMap = opts.attachmentsRelMap || {};
-    const items = [];
-    if (Array.isArray(m.attachments)) {
-      for (const a of m.attachments) {
-        if (!a?.path) continue;
-        const rel = relMap[a.path];
-        if (rel) items.push(`- 附件: ${rel}`);
+    if (Object.keys(relMap).length) {
+      const items = [];
+      if (Array.isArray(m.attachments)) {
+        for (const a of m.attachments) {
+          if (!a?.path) continue;
+          const rel = relMap[a.path];
+          if (!rel) continue;
+          if (String(a?.mime || '').startsWith('image/') || rel.match(/\.(png|jpe?g|gif|webp|bmp)$/i)) {
+            items.push(`![](${rel})`);
+          } else if (a?.mime === 'application/pdf' || rel.toLowerCase().endsWith('.pdf')) {
+            const name = rel.split('/').pop();
+            items.push(`[PDF: ${name}](${rel})`);
+          } else {
+            const name = rel.split('/').pop();
+            items.push(`[附件: ${name}](${rel})`);
+          }
+        }
+      } else {
+        if (m.imagePath && relMap[m.imagePath]) items.push(`![](${relMap[m.imagePath]})`);
+        if (m.pdfPath && relMap[m.pdfPath]) { const name = relMap[m.pdfPath].split('/').pop(); items.push(`[PDF: ${name}](${relMap[m.pdfPath]})`); }
       }
-    } else {
-      if (m.imagePath && relMap[m.imagePath]) items.push(`- 图片: ${relMap[m.imagePath]}`);
-      if (m.pdfPath && relMap[m.pdfPath]) items.push(`- PDF: ${relMap[m.pdfPath]}`);
+      if (items.length) { lines.push(''); lines.push(...items); }
     }
-    if (items.length) { lines.push(''); lines.push(...items); }
     lines.push('');
   }
   return lines.join('\n');
@@ -712,6 +831,8 @@ ipcMain.handle('conversations:exportAll', async (_evt, { format, includeTimestam
   try {
     const store = Stores.conversations.read();
     const list = store.conversations || [];
+    const settings = Stores.settings.read() || {};
+    const names = { user: settings?.ui?.names?.user || '用户', model: settings?.ui?.names?.model || '助手' };
     const wantZip = !!includeAttachments;
     if (!wantZip) {
       const ext = String(format).toLowerCase() === 'md' || format === 'markdown' ? 'md' : 'json';
@@ -726,7 +847,7 @@ ipcMain.handle('conversations:exportAll', async (_evt, { format, includeTimestam
       if (res.canceled || !res.filePath) return { ok: false, canceled: true };
       const filePath = res.filePath;
       const content = (ext === 'md')
-        ? conversationsToMarkdown(list, !!includeTimestamp)
+        ? conversationsToMarkdown(list, !!includeTimestamp, { names })
         : JSON.stringify({ conversations: list.map(c => filterConversationTimestamps(c, !!includeTimestamp)) }, null, 2);
       fs.writeFileSync(filePath, content, 'utf-8');
       return { ok: true, path: filePath };
@@ -758,7 +879,7 @@ ipcMain.handle('conversations:exportAll', async (_evt, { format, includeTimestam
     }
 
     if (ext === 'md') {
-      const md = conversationsToMarkdown(list, !!includeTimestamp, { attachmentsRelMapAll: pathMapAll });
+      const md = conversationsToMarkdown(list, !!includeTimestamp, { attachmentsRelMapAll: pathMapAll, names });
       archive.append(md, { name: fileBase });
     } else {
       const convsCopy = list.map(c => rewriteConversationPaths(c, buildZipRelPathMap(c, collectConversationAttachments(c)), !!includeTimestamp));
@@ -793,7 +914,7 @@ function conversationsToMarkdown(convs, includeTs = true, opts = {}) {
         if (opts.attachmentsRelMapAll[f.path]) localMap[f.path] = opts.attachmentsRelMapAll[f.path];
       }
     }
-    parts.push(conversationToMarkdown(conv, includeTs, { attachmentsRelMap: localMap }));
+    parts.push(conversationToMarkdown(conv, includeTs, { attachmentsRelMap: localMap, names: opts.names }));
     parts.push('');
   }
   return parts.join('\n');
