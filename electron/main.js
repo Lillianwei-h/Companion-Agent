@@ -169,7 +169,7 @@ ipcMain.handle('ui:setMinWidth', async (_evt, width) => {
   try {
     if (!mainWindow) return { ok: false, error: 'no-window' };
     const w = Math.max(0, Number(width) || 0);
-    const cur = (typeof mainWindow.getMinimumSize === 'function') ? mainWindow.getMinimumSize() : [700, 0];
+    const cur = (typeof mainWindow.getMinimumSize === 'function') ? mainWindow.getMinimumSize() : [400, 0];
     const minH = Array.isArray(cur) ? (cur[1] || 0) : 0;
     mainWindow.setMinimumSize(w, minH);
     return { ok: true, width: w, height: minH };

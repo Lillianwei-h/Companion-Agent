@@ -65,8 +65,7 @@ body { background: var(--bg); color: var(--text); font-family: ui-sans-serif, sy
 .dropdown button:hover { background: var(--button-hover-bg); }
 .dropdown-header { padding: 8px 12px; border-bottom: 1px solid var(--border); }
 label.small { font-size: 12px; }
-.chat-title-row { display: flex; align-items: center; gap: 8px; transition: margin-left .25s ease; }
-#app.sidebar-hidden .chat-title-row { margin-left: 72px; }
+.chat-title-row { display: flex; align-items: center; gap: 8px; transition: margin-left .25s ease; margin-left: 72px; }
 .typing-indicator { font-size: inherit; color: var(--text); }
 /* Keep interactive elements clickable (not draggable region) */
 .chat-actions, .chat-actions *, #chat-title, #typing-indicator, button, input, textarea, .composer, .sidebar, .messages, .modal, .modal * { -webkit-app-region: no-drag; }
