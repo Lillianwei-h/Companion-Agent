@@ -41,6 +41,17 @@ async function chatCompletions({ baseUrl, apiKey, body }) {
   return json;
 }
 
+function fileToDataUrl(filePath, mime) {
+  try {
+    if (!filePath) return null;
+    const data = fs.readFileSync(filePath, { encoding: 'base64' });
+    const mt = mime || detectMimeFromPath(filePath);
+    return `data:${mt};base64,${data}`;
+  } catch {
+    return null;
+  }
+}
+
 async function geminiGenerateWithParts({ settings, parts }) {
   let GoogleGenAI;
   try {
@@ -92,6 +103,53 @@ function toGeminiHistoryItem(msg) {
   };
 }
 
+function messageToOpenAIContentParts(msg, names) {
+  try {
+    const parts = [];
+    const ts = msg?.timestamp ? `[${formatTs(msg.timestamp)}] ` : '';
+    const label = msg?.role === 'assistant' ? (names.model + ':') : (names.user + ':');
+    const text = `${ts}${label} ${msg?.content || ''}`.trim();
+    if (text) parts.push({ type: 'text', text });
+
+    // Prefer normalized attachments array when available; fallback to legacy fields
+    const handled = new Set();
+    const pushImage = (p, m) => {
+      try {
+        if (!p) return;
+        const url = fileToDataUrl(p, m);
+        if (!url) return;
+        const key = `img:${p}`;
+        if (handled.has(key)) return;
+        handled.add(key);
+        parts.push({ type: 'image_url', image_url: { url } });
+      } catch {}
+    };
+    const pushPdfNote = (p) => {
+      try {
+        if (!p) return;
+        const name = String(p).split(/[\\/]/).pop();
+        const note = `【已附加 PDF：${name || '文件'}】`;
+        parts.push({ type: 'text', text: note });
+      } catch {}
+    };
+
+    if (Array.isArray(msg?.attachments)) {
+      for (const a of msg.attachments) {
+        const mime = a?.mime || detectMimeFromPath(a?.path || '');
+        if (String(mime || '').startsWith('image/')) pushImage(a?.path, mime);
+        else if (String(mime).toLowerCase() === 'application/pdf' || String(a?.path || '').toLowerCase().endsWith('.pdf')) pushPdfNote(a?.path);
+      }
+    } else {
+      if (msg?.imagePath) pushImage(msg.imagePath, msg.imageMime || detectMimeFromPath(msg.imagePath));
+      if (msg?.pdfPath) pushPdfNote(msg.pdfPath);
+    }
+    return parts.length ? parts : [{ type: 'text', text: text || '' }];
+  } catch {
+    const fallback = `${msg?.content || ''}`;
+    return [{ type: 'text', text: fallback }];
+  }
+}
+
 async function callChat({ settings, conversation, memory }) {
   const persona = settings?.persona || '';
   const systemPrompt = buildSystemPrompt(persona, memory);
@@ -138,13 +196,24 @@ async function callChat({ settings, conversation, memory }) {
     return await geminiGenerateWithParts({ settings, parts });
   } else {
     const names = { user: (settings?.ui?.names?.user || 'User'), model: (settings?.ui?.names?.model || 'You') };
-    const messages = [
-      { role: 'system', content: systemPrompt },
-      ...msgs.map(m => ({
-        role: m.role,
-        content: `${m.timestamp ? `[${formatTs(m.timestamp)}] ` : ''}${m.role === 'assistant' ? (names.model + ': ') : (names.user + ': ')}${m.content}`,
-      })),
-    ];
+    const messages = [ { role: 'system', content: systemPrompt } ];
+    for (const m of msgs) {
+      const hasAttach = Array.isArray(m.attachments) && m.attachments.length || m.imagePath || m.pdfPath;
+      if (hasAttach) {
+        messages.push({ role: m.role, content: messageToOpenAIContentParts(m, names) });
+      } else {
+        messages.push({
+          role: m.role,
+          content: `${m.timestamp ? `[${formatTs(m.timestamp)}] ` : ''}${m.role === 'assistant' ? (names.model + ': ') : (names.user + ': ')}${m.content}`,
+        });
+      }
+    }
+    const latest = msgs[msgs.length - 1];
+    const tail = latest?.role === 'user'
+      ? '[对话内容结束]\nNote: [请继续回复消息，你回复时不需要带上姓名和时间戳。只要回复你说的话即可。]'
+      : '[对话内容结束]\nNote: [请继续你的上一条消息，你回复时不需要带上姓名和时间戳。只要回复你说的话即可。]';
+    messages.push({ role: 'user', content: tail });
+
     const body = {
       model: settings?.api?.model || 'gpt-4o-mini',
       messages,
@@ -233,17 +302,15 @@ async function proactiveCheck({ settings, conversation, memory, now }) {
     content = await geminiGenerateWithParts({ settings, parts });
   } else {
     const names = { user: (settings?.ui?.names?.user || 'User'), model: (settings?.ui?.names?.model || 'You') };
-    const messages = [
-      { role: 'system', content: systemPrompt },
-      ...pickRecentMessages(conversation.messages, limit).map(m => ({
-        role: m.role,
-        content: `${m.timestamp ? `[${formatTs(m.timestamp)}] ` : ''}${m.role === 'assistant' ? (names.model + ': ') : (names.user + ': ')}${m.content}`,
-      })),
-      { role: 'user', content:
-        `现在的时间是 ${typeof now === 'string' ? now : now.toLocaleString()} 。` +
-        `如果你发现我一段时间没有回复你，你要主动给我发消息。如果你想主动联系我，也可以直接给我发消息。如果你决定不发信息，请回复 SKIP；若需要，请以 SEND: <消息> 格式输出，不要只回复SEND。`
-      }
-    ];
+    const recent = pickRecentMessages(conversation.messages, limit);
+    const messages = [ { role: 'system', content: systemPrompt } ];
+    for (const m of recent) {
+      const hasAttach = Array.isArray(m.attachments) && m.attachments.length || m.imagePath || m.pdfPath;
+      if (hasAttach) messages.push({ role: m.role, content: messageToOpenAIContentParts(m, names) });
+      else messages.push({ role: m.role, content: `${m.timestamp ? `[${formatTs(m.timestamp)}] ` : ''}${m.role === 'assistant' ? (names.model + ': ') : (names.user + ': ')}${m.content}` });
+    }
+    messages.push({ role: 'user', content: `[提醒] 现在的时间是 ${typeof now === 'string' ? now : now.toLocaleString()} 。如果你决定暂不主动联系，请回复 SKIP；若需要，请以 SEND: <消息> 格式输出。你回复时不需要带上姓名和时间戳。` });
+
     const body = {
       model: settings?.api?.model || 'gpt-4o-mini',
       messages,
@@ -306,13 +373,15 @@ async function summarizeConversation({ settings, conversation }) {
     return await geminiGenerateWithParts({ settings, parts });
   } else {
     const names = { user: (settings?.ui?.names?.user || 'User'), model: (settings?.ui?.names?.model || 'You') };
-    const messages = [
-      { role: 'system', content: systemPrompt },
-      ...pickRecentMessages(conversation.messages, limit).map(m => ({
-        role: m.role,
-        content: `${m.timestamp ? `[${formatTs(m.timestamp)}] ` : ''}${m.role === 'assistant' ? (names.model + ': ') : (names.user + ': ')}${m.content}`,
-      })),
-    ];
+    const recent = pickRecentMessages(conversation.messages, limit);
+    const messages = [ { role: 'system', content: systemPrompt } ];
+    for (const m of recent) {
+      const hasAttach = Array.isArray(m.attachments) && m.attachments.length || m.imagePath || m.pdfPath;
+      if (hasAttach) messages.push({ role: m.role, content: messageToOpenAIContentParts(m, names) });
+      else messages.push({ role: m.role, content: `${m.role === 'assistant' ? (names.model + ': ') : (names.user + ': ')}${m.timestamp ? `[${formatTs(m.timestamp)}] ` : ''}${m.content}` });
+    }
+    messages.push({ role: 'user', content: `[对话结束]\n请基于以上对话文本与附件，输出记忆内容，应当是以${settings?.ui?.names?.model || '你'}作为第一人称的表述，只需要单纯的记忆内容，不需要加入说话人姓名和时间戳。` });
+
     const body = {
       model: settings?.api?.model || 'gpt-4o-mini',
       messages,
