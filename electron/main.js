@@ -134,7 +134,7 @@ function createWindow() {
   } : {};
 
   mainWindow = new BrowserWindow({
-    width: 1200,
+    width: 600,
     height: 800,
     minWidth: 400, // default when sidebar可见；收起后由渲染进程动态调到400
     webPreferences: {

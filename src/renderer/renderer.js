@@ -147,6 +147,14 @@ async function init() {
 
   // Initialize sidebar toggle arrow according to current state
   updateSidebarToggleLabel();
+  // Sync minWidth based on initial sidebar state
+  try {
+    const app = document.getElementById('app');
+    const hidden = app.classList.contains('sidebar-hidden');
+    if (window.api && typeof window.api.setMinWidth === 'function') {
+      window.api.setMinWidth(hidden ? 400 : 700).catch(() => {});
+    }
+  } catch {}
 }
 
 function renderAll() {
@@ -1221,6 +1229,9 @@ function applyTranslucency(strength, sidebarStrength) {
     : { bg: a(0.50, 0.90), panel: a(0.60, 0.95), panel2: a(0.55, 0.85), field: a(0.85, 0.95) };
   root.style.setProperty('--bg', `rgba(${rgb.bg}, ${alpha.bg})`);
   root.style.setProperty('--panel', `rgba(${rgb.panel}, ${alpha.panel})`);
+  // Header uses a slightly more transparent panel to emphasize glass effect
+  const headerAlpha = Math.max(0, Math.min(1, (Number(alpha.panel) || 0.7) * 0.6)).toFixed(2);
+  root.style.setProperty('--panel-header', `rgba(${rgb.panel}, ${headerAlpha})`);
   root.style.setProperty('--panel-2', `rgba(${rgb.panel2}, ${alpha.panel2})`);
   root.style.setProperty('--field-bg', `rgba(${rgb.field}, ${alpha.field})`);
   // Sidebar transparency independent control
