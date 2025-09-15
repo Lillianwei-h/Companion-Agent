@@ -983,6 +983,8 @@ function setupChatResizer() {
     const maxH = Math.max(120, Math.min(500, rect.height - 160));
     newH = Math.max(minH, Math.min(maxH, newH));
     elChat.style.setProperty('--composer-height', `${Math.round(newH)}px`);
+    // While dragging, keep textarea filling available area
+    try { autoResizeComposer(); } catch {}
   }
   function onUp() {
     dragging = false;
@@ -1026,7 +1028,19 @@ function autoResizeComposer() {
   const prev = elInput.style.height;
   // Current composer height from CSS variable (keep if empty input)
   const cssH = getComputedStyle(elChat).getPropertyValue('--composer-height').trim();
-  const curH = Number((cssH || '140px').replace('px', '')) || 140;
+  let curH = Number((cssH || '140px').replace('px', '')) || 140;
+  // If an attachment is visible, ensure composer height is tall enough
+  if (attachVisible) {
+    const rect = elChat.getBoundingClientRect();
+    const minText = 80; // at least this much space for textarea
+    const required = pad + (attachH ? (attachH + rowGap) : 0) + Math.max(actionsH, minText);
+    const maxH = Math.max(120, Math.min(500, rect.height - 160));
+    const target = Math.min(Math.max(required, 80), maxH);
+    if (curH < target) {
+      curH = target;
+      elChat.style.setProperty('--composer-height', `${Math.round(curH)}px`);
+    }
+  }
   const empty = elInput.value.trim().length === 0;
 
   if (empty) {
