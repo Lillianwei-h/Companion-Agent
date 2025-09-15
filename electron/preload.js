@@ -54,6 +54,10 @@ contextBridge.exposeInMainWorld('api', {
     ipcRenderer.on('ui:toggleSidebar', cb);
     return () => ipcRenderer.removeListener('ui:toggleSidebar', cb);
   },
+  onNewChat: (cb) => {
+    ipcRenderer.on('ui:newChat', cb);
+    return () => ipcRenderer.removeListener('ui:newChat', cb);
+  },
 
   // Diagnostics
   testApi: (settings) => ipcRenderer.invoke('api:test', settings),

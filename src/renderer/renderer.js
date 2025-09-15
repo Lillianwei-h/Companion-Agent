@@ -1288,7 +1288,27 @@ window.addEventListener('keydown', (e) => {
     hideExportMenu();
     // Close settings modal with ESC
     try { if (elSettingsModal && !elSettingsModal.classList.contains('hidden')) hide(elSettingsModal); } catch {}
+    // Close memory modal with ESC
+    try { if (elMemoryModal && !elMemoryModal.classList.contains('hidden')) hide(elMemoryModal); } catch {}
+    // Collapse sidebar if visible
+    try {
+      const app = document.getElementById('app');
+      if (app && !app.classList.contains('sidebar-hidden')) {
+        app.classList.add('sidebar-hidden');
+        updateSidebarToggleLabel();
+        if (window.api && typeof window.api.setMinWidth === 'function') {
+          window.api.setMinWidth(400).catch(() => {});
+        }
+      }
+    } catch {}
   }
+  // Cmd/Ctrl + N: New chat
+  try {
+    if ((e.metaKey || e.ctrlKey) && String(e.key || '').toLowerCase() === 'n') {
+      e.preventDefault();
+      onNewChat();
+    }
+  } catch {}
 });
 elDeleteCurrent?.addEventListener('click', async () => {
   if (!state.currentId) return;
@@ -1311,6 +1331,9 @@ elBtnTestNotif?.addEventListener('click', async () => {
     elBtnTestNotif.disabled = false;
   }
 });
+
+// Menu accelerator: listen for 'ui:newChat' from main
+try { window.api.onNewChat?.(() => onNewChat()); } catch {}
 
 elBtnProactiveOnce?.addEventListener('click', async () => {
   elBtnProactiveOnce.disabled = true;

@@ -199,6 +199,12 @@ function setAppMenu() {
   template.push({
     label: 'File',
     submenu: [
+      {
+        label: 'New Chat', accelerator: 'CmdOrCtrl+N', click: () => {
+          try { (BrowserWindow.getFocusedWindow() || mainWindow)?.webContents.send('ui:newChat'); } catch {}
+        }
+      },
+      { type: 'separator' },
       ...(!isMac ? [{
         label: 'Preferences…', accelerator: 'CmdOrCtrl+,', click: () => {
           try {
