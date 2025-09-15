@@ -1672,9 +1672,8 @@ function applyTranslucency(strength, sidebarStrength) {
     : { bg: a(0.50, 0.90), panel: a(0.60, 0.95), panel2: a(0.55, 0.85), field: a(0.85, 0.95) };
   root.style.setProperty('--bg', `rgba(${rgb.bg}, ${alpha.bg})`);
   root.style.setProperty('--panel', `rgba(${rgb.panel}, ${alpha.panel})`);
-  // Header uses a slightly more transparent panel to emphasize glass effect
-  const headerAlpha = Math.max(0, Math.min(1, (Number(alpha.panel) || 0.7) * 0.6)).toFixed(2);
-  root.style.setProperty('--panel-header', `rgba(${rgb.panel}, ${headerAlpha})`);
+  // Make header match modal/panel color (no gradient, same tone)
+  root.style.setProperty('--panel-header', `rgba(${rgb.panel}, ${alpha.panel})`);
   root.style.setProperty('--panel-2', `rgba(${rgb.panel2}, ${alpha.panel2})`);
   root.style.setProperty('--field-bg', `rgba(${rgb.field}, ${alpha.field})`);
   // Sidebar transparency independent control

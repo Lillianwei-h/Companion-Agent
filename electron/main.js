@@ -179,7 +179,12 @@ function setAppMenu() {
         {
           label: 'Preferences…',
           accelerator: 'CmdOrCtrl+,',
-          click: () => { try { mainWindow?.webContents.send('ui:openSettings'); } catch {} },
+          click: () => {
+            try {
+              const win = BrowserWindow.getFocusedWindow() || mainWindow;
+              win?.webContents.send('ui:openSettings');
+            } catch {}
+          },
         },
         { type: 'separator' },
         { role: 'hide' },
@@ -195,7 +200,12 @@ function setAppMenu() {
     label: 'File',
     submenu: [
       ...(!isMac ? [{
-        label: 'Preferences…', accelerator: 'CmdOrCtrl+,', click: () => { try { mainWindow?.webContents.send('ui:openSettings'); } catch {} },
+        label: 'Preferences…', accelerator: 'CmdOrCtrl+,', click: () => {
+          try {
+            const win = BrowserWindow.getFocusedWindow() || mainWindow;
+            win?.webContents.send('ui:openSettings');
+          } catch {}
+        },
       }, { type: 'separator' }] : []),
       isMac ? { role: 'close' } : { role: 'quit' },
     ],
