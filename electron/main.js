@@ -136,7 +136,7 @@ function createWindow() {
   mainWindow = new BrowserWindow({
     width: 1200,
     height: 800,
-    minWidth: 700, // sidebar (300) + chat min (400)
+    minWidth: 400, // default when sidebar可见；收起后由渲染进程动态调到400
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
@@ -162,6 +162,20 @@ app.whenReady().then(async () => {
 
 app.on('window-all-closed', function () {
   if (process.platform !== 'darwin') app.quit();
+});
+
+// UI: allow renderer to adjust minimum window width (e.g., when sidebar collapsed)
+ipcMain.handle('ui:setMinWidth', async (_evt, width) => {
+  try {
+    if (!mainWindow) return { ok: false, error: 'no-window' };
+    const w = Math.max(0, Number(width) || 0);
+    const cur = (typeof mainWindow.getMinimumSize === 'function') ? mainWindow.getMinimumSize() : [700, 0];
+    const minH = Array.isArray(cur) ? (cur[1] || 0) : 0;
+    mainWindow.setMinimumSize(w, minH);
+    return { ok: true, width: w, height: minH };
+  } catch (e) {
+    return { ok: false, error: e?.message || String(e) };
+  }
 });
 
 function formatStartTime(date) {

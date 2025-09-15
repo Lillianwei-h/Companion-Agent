@@ -1233,6 +1233,13 @@ function toggleSidebar() {
   const app = document.getElementById('app');
   app.classList.toggle('sidebar-hidden');
   updateSidebarToggleLabel();
+  try {
+    const hidden = app.classList.contains('sidebar-hidden');
+    // Adjust window min width: 400 when hidden, 700 when visible
+    if (window.api && typeof window.api.setMinWidth === 'function') {
+      window.api.setMinWidth(hidden ? 400 : 700).catch(() => {});
+    }
+  } catch {}
 }
 
 function updateSidebarToggleLabel() {

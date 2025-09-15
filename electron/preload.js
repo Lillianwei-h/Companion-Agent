@@ -51,6 +51,7 @@ contextBridge.exposeInMainWorld('api', {
   // UI state
   setCurrentConversation: (id) => ipcRenderer.invoke('ui:setCurrentConversation', id),
   applyVibrancy: (enabled) => ipcRenderer.invoke('ui:applyVibrancy', enabled),
+  setMinWidth: (width) => ipcRenderer.invoke('ui:setMinWidth', width),
 
   // Export
   exportConversation: (payload) => ipcRenderer.invoke('conversations:export', payload),
