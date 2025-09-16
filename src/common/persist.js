@@ -68,6 +68,7 @@ function defaultSettings() {
       listOrderMode: 'auto', // 'auto' | 'manual'
       conversationOrder: [],
       proactiveConversationId: '',
+      initialGreetingOnManualCreate: true,
       vibrancy: {
         enabled: true,
         strength: 0.65, // 0..1

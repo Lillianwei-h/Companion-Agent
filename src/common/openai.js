@@ -314,7 +314,7 @@ async function proactiveCheck({ settings, conversation, memory, now }) {
     const body = {
       model: settings?.api?.model || 'gpt-4o-mini',
       messages,
-      max_tokens: Math.min(settings?.api?.maxTokens ?? 256, 180),
+      max_tokens: settings?.api?.maxTokens ?? 256,
       temperature: settings?.api?.temperature ?? 0.7,
       stream: false,
     };
@@ -385,7 +385,7 @@ async function summarizeConversation({ settings, conversation }) {
     const body = {
       model: settings?.api?.model || 'gpt-4o-mini',
       messages,
-      max_tokens: 300,
+      max_tokens: settings?.api?.maxTokens ?? 256,
       temperature: 0.5,
       stream: false,
     };

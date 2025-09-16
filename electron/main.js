@@ -449,15 +449,18 @@ ipcMain.handle('conversations:create', async (_evt, title) => {
   setTimeout(async () => {
     try {
       const settings = Stores.settings.read();
-      const memory = Stores.memory.read();
-      const text = await initialGreeting({ settings, memory });
-      if (text) {
-        const convStore = Stores.conversations.read();
-        const c = convStore.conversations.find(x => x.id === id);
-        if (c) {
-          c.messages.push({ id: `msg_${Date.now()}`, role: 'assistant', content: text, timestamp: new Date().toISOString() });
-          Stores.conversations.write(convStore);
-          mainWindow?.webContents.send('data:conversations-updated');
+      const allow = settings?.ui?.initialGreetingOnManualCreate ?? true;
+      if (allow) {
+        const memory = Stores.memory.read();
+        const text = await initialGreeting({ settings, memory });
+        if (text) {
+          const convStore = Stores.conversations.read();
+          const c = convStore.conversations.find(x => x.id === id);
+          if (c) {
+            c.messages.push({ id: `msg_${Date.now()}`, role: 'assistant', content: text, timestamp: new Date().toISOString() });
+            Stores.conversations.write(convStore);
+            mainWindow?.webContents.send('data:conversations-updated');
+          }
         }
       }
     } catch (e) {

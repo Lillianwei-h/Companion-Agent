@@ -73,6 +73,7 @@ const elApiSummaryHistory = document.getElementById('api-summary-history');
 const elProactiveEnabled = document.getElementById('proactive-enabled');
 const elProactiveInterval = document.getElementById('proactive-interval');
 const elNotifProactive = document.getElementById('notif-proactive');
+const elGreetOnCreate = document.getElementById('greet-on-create');
 const elVibrancyEnabled = document.getElementById('vibrancy-enabled');
 const elVibrancyStrength = document.getElementById('vibrancy-strength');
 const elVibrancySidebarStrength = document.getElementById('vibrancy-sidebar-strength');
@@ -133,9 +134,12 @@ async function init() {
   try { await window.api.setCurrentConversation(state.currentId); } catch {}
   state.memory = await window.api.listMemory();
   renderAll();
-  // If we just created a fresh conversation (first run), show typing immediately
+  // If first boot created a conversation, show typing only if greeting enabled
   if (createdNow) {
-    try { startTypingPlaceholder(); } catch {}
+    try {
+      const enabled = !!(state.settings?.ui?.initialGreetingOnManualCreate ?? true);
+      if (enabled) startTypingPlaceholder();
+    } catch {}
   }
 
   // Initialize composer height from CSS var if present
@@ -784,8 +788,11 @@ async function onNewChat() {
     try { state.settings = await window.api.getSettings(); } catch {}
     renderConversations();
     renderMessages();
-    // After final render, show typing placeholder for agent greeting
-    try { startTypingPlaceholder(); } catch {}
+    // After final render, show typing placeholder only if greeting enabled
+    try {
+      const enabled = !!(state.settings?.ui?.initialGreetingOnManualCreate ?? true);
+      if (enabled) startTypingPlaceholder();
+    } catch {}
   } catch (e) {
     alert('新建对话失败：' + e.message);
   }
@@ -805,6 +812,7 @@ function fillSettingsForm() {
   elProactiveEnabled.checked = !!s.proactive?.enabled;
   elProactiveInterval.value = s.proactive?.intervalMinutes ?? 10;
   elNotifProactive.checked = !!s.notifications?.onProactive;
+  if (elGreetOnCreate) elGreetOnCreate.checked = s.ui?.initialGreetingOnManualCreate ?? true;
   const vDefault = navigator.userAgent.includes('Mac') ? true : false;
   elVibrancyEnabled.checked = s.ui?.vibrancy?.enabled ?? vDefault;
   elVibrancyStrength.value = Math.round((s.ui?.vibrancy?.strength ?? 0.65) * 100);
@@ -837,6 +845,7 @@ function buildSettingsPatchFromForm() {
     avatars: state.settings.avatars || {},
     ui: {
       ...(state.settings.ui || {}),
+      initialGreetingOnManualCreate: !!(elGreetOnCreate && elGreetOnCreate.checked),
       vibrancy: {
         enabled: !!elVibrancyEnabled.checked,
         strength: Math.max(0, Math.min(1, Number(elVibrancyStrength.value) / 100 || 0.65)),
