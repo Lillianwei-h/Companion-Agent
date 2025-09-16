@@ -37,8 +37,8 @@ body { background: transparent; color: var(--text); font-family: ui-sans-serif, 
 #app { display: grid; grid-template-columns: 1fr; height: 100vh; overflow: hidden; position: relative; }
 #app.sidebar-hidden .sidebar { overflow: hidden; }
 
-.sidebar { background: var(--sidebar-panel); border-right: 1px solid var(--border); display: flex; flex-direction: column; min-height: 0; min-width: 0; overflow: hidden; backdrop-filter: blur(10px) saturate(120%); -webkit-backdrop-filter: blur(10px) saturate(120%); position: absolute; top: 0; bottom: 0; left: 0; width: var(--sidebar-width); transition: width .25s ease; z-index: 55; }
-#app.sidebar-hidden .sidebar { width: 0; border-right-width: 0; }
+.sidebar { background: var(--sidebar-panel); border-right: 1px solid var(--border); display: flex; flex-direction: column; min-height: 0; min-width: 0; overflow: hidden; backdrop-filter: blur(10px) saturate(120%); -webkit-backdrop-filter: blur(10px) saturate(120%); position: absolute; top: 0; bottom: 0; left: 0; width: var(--sidebar-width); transform: translateX(0); transition: transform .25s ease; will-change: transform; z-index: 55; }
+#app.sidebar-hidden .sidebar { transform: translateX(-100%); border-right-width: 0; }
 .sidebar-header { padding: 12px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); height: 58px;}
 .app-title { font-weight: 700; }
 .sidebar-footer { padding: 12px; border-top: 1px solid var(--border); display: flex; gap: 8px; justify-content: space-between; }
