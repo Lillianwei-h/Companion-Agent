@@ -15,7 +15,12 @@ Built with Codex. Desktop AI companion for chat, memory, and proactive notificat
 - Multimodal: images and PDFs; summaries and proactive checks include attachments
 - One-click export with attachments (Markdown/JSON + files)
 
-## Quick Start
+## Install
+- MacOS(m chip): Download .dmg from releases and install
+- Windows(x64): Download .exe from releases and install
+- Others: Not supported yet; Run from source instead
+
+## Run from source
 1) Install dependencies
 ```bash
 npm install
