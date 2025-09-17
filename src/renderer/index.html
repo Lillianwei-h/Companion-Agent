@@ -87,29 +87,28 @@
               <label id="label-api-summary-history" data-i18n="settings.apiSummaryHistory">总结上下文条数 <input id="api-summary-history" type="number" min="1" max="1000" /></label>
             </div>
             <div>
-              <h3 id="section-names-title" data-i18n="settings.names">称呼</h3>
+              <h3 id="section-names-title" data-i18n="settings.names">角色</h3>
               <label id="label-name-user" data-i18n="settings.nameUser">用户称呼 <input id="name-user" type="text" placeholder="我 / User" /></label>
               <label id="label-name-model" data-i18n="settings.nameModel">助手称呼 <input id="name-model" type="text" placeholder="小助手 / You" /></label>
-              <h3 id="section-avatars-title" data-i18n="settings.avatars">头像</h3>
               <div class="avatar-row">
                 <div>
-                  <div id="label-avatar-user" data-i18n="settings.avatarUser">我的头像</div>
+                  <div id="label-avatar-user" data-i18n="settings.avatarUser" style="margin-bottom: 10px;">我的头像</div>
                   <img id="avatar-user-preview" class="avatar" alt="user" />
                 </div>
                 <div>
-                  <div id="label-avatar-agent" data-i18n="settings.avatarAgent">模型头像</div>
+                  <div id="label-avatar-agent" data-i18n="settings.avatarAgent" style="margin-bottom: 10px;">模型头像</div>
                   <img id="avatar-agent-preview" class="avatar" alt="agent" />
                 </div>
               </div>
-              <h3 id="section-proactive-title" data-i18n="settings.proactive">通知与主动联系</h3>
+              <h3 id="section-proactive-title" data-i18n="settings.proactive" style="margin-top: 20px;">通知与主动联系</h3>
               <label class="inline" id="label-proactive-enabled" data-i18n="settings.proactiveEnabled">启用主动联系 <input id="proactive-enabled" type="checkbox" /></label>
               <label id="label-proactive-interval" data-i18n="settings.proactiveInterval">间隔（分钟） <input id="proactive-interval" type="number" min="1" max="240" /></label>
-              <label class="inline" id="label-notif-proactive" data-i18n="settings.notifProactive">新消息显示系统通知 <input id="notif-proactive" type="checkbox" /></label>
+              <span id="proactive-status" class="muted"></span>
+              <label class="inline" id="label-notif-proactive" data-i18n="settings.notifProactive"  style="margin-top: 20px;">新消息显示系统通知 <input id="notif-proactive" type="checkbox" /></label>
               <label class="inline" id="label-greet-on-create" data-i18n="settings.greetOnCreate">新建对话时自动打招呼 <input id="greet-on-create" type="checkbox" /></label>
               <div style="margin-top:8px; display:flex; gap:8px; align-items:center; flex-wrap: wrap;">
                 <button id="btn-test-notif" data-i18n="settings.sendTestNotif">发送测试通知</button>
                 <button id="btn-proactive-once" data-i18n="settings.runOnce">立即检查一次</button>
-                <span id="proactive-status" class="muted"></span>
               </div>
             </div>
           </section>
