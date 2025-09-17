@@ -1,3 +1,13 @@
+// i18n helpers are provided by src/renderer/i18n.js
+function applyI18nFromState() {
+  try {
+    const pref = state?.settings?.ui?.language || 'zh-CN';
+    const lang = window.i18n.resolveLang(pref);
+    window.i18n.setLang(lang);
+    window.i18n.applyStatic();
+  } catch {}
+}
+
 // Default avatars packaged with the app (relative to renderer index.html)
 const DEFAULT_AVATARS = {
   user: '../media/user.png',
@@ -83,6 +93,7 @@ const elGreetOnCreate = document.getElementById('greet-on-create');
 const elVibrancyEnabled = document.getElementById('vibrancy-enabled');
 const elVibrancyStrength = document.getElementById('vibrancy-strength');
 const elVibrancySidebarStrength = document.getElementById('vibrancy-sidebar-strength');
+const elLanguage = document.getElementById('ui-language');
 const elNameUser = document.getElementById('name-user');
 const elNameModel = document.getElementById('name-model');
 const elAvatarUserPreview = document.getElementById('avatar-user-preview');
@@ -114,6 +125,8 @@ function escapeHtml(s) {
 
 async function init() {
   state.settings = await window.api.getSettings();
+  // Apply i18n for initial UI
+  try { applyI18nFromState(); } catch {}
   // Force auto ordering if manual was previously enabled
   if (state.settings?.ui?.listOrderMode === 'manual') {
     try {
@@ -264,15 +277,15 @@ function renderConversations() {
     const proactiveBtn = document.createElement('button');
     const pinned = state.settings?.ui?.proactiveConversationId === conv.id;
     proactiveBtn.className = 'proactive' + (pinned ? ' active' : '');
-    proactiveBtn.title = pinned ? '已设为主动联系上下文，点击取消' : '设为主动联系上下文';
+    proactiveBtn.title = pinned ? t('proactive.pinOnTitle') : t('proactive.pinOffTitle');
     proactiveBtn.textContent = pinned ? '★' : '☆';
     const renameBtn = document.createElement('button');
     renameBtn.className = 'rename';
-    renameBtn.title = '重命名';
+    renameBtn.title = t('tip.edit');
     renameBtn.textContent = '✎';
     const deleteBtn = document.createElement('button');
     deleteBtn.className = 'delete';
-    deleteBtn.title = '删除';
+    deleteBtn.title = t('common.delete');
     deleteBtn.textContent = '🗑';
     div.onclick = () => {
       state.currentId = conv.id;
@@ -293,7 +306,7 @@ function renderConversations() {
         state.settings = next;
         renderConversations();
       } catch (err) {
-        alert('更新主动联系上下文失败：' + (err?.message || err));
+        alert(t('err.updateProactiveContext') + (err?.message || err));
       }
     });
     renameBtn.addEventListener('click', async (e) => {
@@ -336,8 +349,8 @@ async function applyManualReorder(dragId, beforeId) {
 async function deleteConversationById(id) {
   if (!id) return;
   const conv = (state.conversationsStore.conversations || []).find(c => c.id === id);
-  const name = conv?.title || '该对话';
-  const ok = confirm(`确定删除“${name}”吗？此操作不可撤销。`);
+  const name = conv?.title || t('label.mem.defaultTitle');
+  const ok = confirm(t('confirm.deleteConv', { name }));
   if (!ok) return;
   try {
     await window.api.deleteConversation(id);
@@ -371,7 +384,7 @@ async function deleteConversationById(id) {
     renderConversations();
     renderMessages();
   } catch (e) {
-    alert('删除失败：' + e.message);
+    alert(t('err.deleteFailed') + e.message);
   }
 }
 
@@ -411,7 +424,7 @@ function renderMessages() {
           tag.style.fontSize = '12px';
           tag.style.color = 'var(--muted)';
           const name = (a.path || '').split(/[\\/]/).pop();
-          tag.textContent = `📄 PDF 附件${name ? ' · ' + name : ''}`;
+          tag.textContent = `${t('tip.pdfAttachment')}${name ? ' · ' + name : ''}`;
           tag.style.cursor = 'pointer';
           tag.addEventListener('click', () => { try { window.api.openPath(a.path); } catch {} });
           wrap.appendChild(tag);
@@ -440,7 +453,7 @@ function renderMessages() {
         tag.style.fontSize = '12px';
         tag.style.color = 'var(--muted)';
         const name = (msg.pdfPath || '').split(/[\\/]/).pop();
-        tag.textContent = `📄 PDF 附件${name ? ' · ' + name : ''}`;
+        tag.textContent = `${t('tip.pdfAttachment')}${name ? ' · ' + name : ''}`;
         tag.style.cursor = 'pointer';
         tag.addEventListener('click', () => { try { window.api.openPath(msg.pdfPath); } catch {} });
         wrap.appendChild(tag);
@@ -456,19 +469,19 @@ function renderMessages() {
     const actions = document.createElement('div');
     actions.className = 'msg-actions';
     const btnCopy = document.createElement('button');
-    btnCopy.title = '复制';
+    btnCopy.title = t('tip.copy');
     btnCopy.textContent = '📋';
     btnCopy.className = 'msg-btn';
     btnCopy.setAttribute('data-action', 'copy');
     btnCopy.setAttribute('data-mid', msg.id);
     const btnEdit = document.createElement('button');
-    btnEdit.title = '编辑';
+    btnEdit.title = t('tip.edit');
     btnEdit.textContent = '✎';
     btnEdit.className = 'msg-btn';
     btnEdit.setAttribute('data-action', 'edit');
     btnEdit.setAttribute('data-mid', msg.id);
     const btnDel = document.createElement('button');
-    btnDel.title = '删除';
+    btnDel.title = t('common.delete');
     btnDel.textContent = '🗑';
     btnDel.className = 'msg-btn';
     btnDel.setAttribute('data-action', 'delete');
@@ -527,7 +540,7 @@ elMessages.addEventListener('click', async (e) => {
       btn.textContent = '✓';
       setTimeout(() => { try { btn.textContent = original; } catch {} }, 600);
     } catch (e) {
-      alert('复制失败：' + (e?.message || e));
+      alert(t('label.failure', { msg: e?.message || e }));
     }
   }
 });
@@ -616,7 +629,7 @@ async function onSend() {
     stopTypingPlaceholder();
     renderMessages();
   } catch (e) {
-    alert('发送失败: ' + e.message);
+    alert(t('err.sendFailed') + e.message);
     stopTypingPlaceholder();
     // Refresh from store to reflect any persisted user message
     state.conversationsStore = await window.api.listConversations();
@@ -645,7 +658,7 @@ function appendOptimisticUser(text, attachments) {
         fileTag.style.fontSize = '12px';
         fileTag.style.color = 'var(--muted)';
         const name = (a.path || '').split(/[\\/]/).pop();
-        fileTag.textContent = `📄 已附加 PDF${name ? ' · ' + name : ''}`;
+        fileTag.textContent = `${t('tip.attachedPdf')}${name ? ' · ' + name : ''}`;
         wrap.appendChild(fileTag);
       } else if (a?.path) {
         const pic = document.createElement('img');
@@ -735,9 +748,9 @@ async function onEditMessage(conversationId, messageId, oldContent) {
   const bar = document.createElement('div');
   bar.className = 'msg-edit-actions';
   const btnCancel = document.createElement('button');
-  btnCancel.textContent = '取消';
+  btnCancel.textContent = t('common.cancel');
   const btnSave = document.createElement('button');
-  btnSave.textContent = '保存';
+  btnSave.textContent = t('common.save');
   btnSave.className = 'primary';
   bar.appendChild(btnCancel);
   bar.appendChild(btnSave);
@@ -756,25 +769,25 @@ async function onEditMessage(conversationId, messageId, oldContent) {
     const text = textarea.value.trim();
     try {
       const res = await window.api.updateMessage({ conversationId, messageId, content: text });
-      if (!res?.ok) throw new Error(res?.error || '更新失败');
+      if (!res?.ok) throw new Error(res?.error || t('err.updateFailed'));
       state.conversationsStore = await window.api.listConversations();
       renderMessages();
     } catch (e) {
-      alert('编辑失败：' + e.message);
+      alert(t('err.editFailed') + e.message);
     }
   });
 }
 
 async function onDeleteMessage(conversationId, messageId) {
-  const ok = confirm('确定删除该消息吗？');
+  const ok = confirm(t('confirm.deleteMsg'));
   if (!ok) return;
   try {
     const res = await window.api.deleteMessage({ conversationId, messageId });
-    if (!res?.ok) throw new Error(res?.error || '删除失败');
+    if (!res?.ok) throw new Error(res?.error || t('err.deleteFailed'));
     state.conversationsStore = await window.api.listConversations();
     renderMessages();
   } catch (e) {
-    alert('删除失败：' + e.message);
+    alert(t('err.deleteFailed') + e.message);
   }
 }
 
@@ -802,7 +815,7 @@ async function onNewChat() {
       if (enabled) startTypingPlaceholder();
     } catch {}
   } catch (e) {
-    alert('新建对话失败：' + e.message);
+    alert(t('err.newChatFailed') + e.message);
   }
 }
 
@@ -825,6 +838,7 @@ function fillSettingsForm() {
   elVibrancyEnabled.checked = s.ui?.vibrancy?.enabled ?? vDefault;
   elVibrancyStrength.value = Math.round((s.ui?.vibrancy?.strength ?? 0.65) * 100);
   elVibrancySidebarStrength.value = Math.round((s.ui?.vibrancy?.sidebarStrength ?? 0.35) * 100);
+  if (elLanguage) elLanguage.value = s.ui?.language || 'zh-CN';
   elNameUser.value = s.ui?.names?.user || '我';
   elNameModel.value = s.ui?.names?.model || '小助手';
   // Preview packaged defaults when user has not set custom avatars yet
@@ -854,6 +868,7 @@ function buildSettingsPatchFromForm() {
     avatars: state.settings.avatars || {},
     ui: {
       ...(state.settings.ui || {}),
+      language: (elLanguage && elLanguage.value) || (state.settings.ui?.language || 'zh-CN'),
       initialGreetingOnManualCreate: !!(elGreetOnCreate && elGreetOnCreate.checked),
       vibrancy: {
         enabled: !!elVibrancyEnabled.checked,
@@ -874,23 +889,25 @@ async function saveSettings() {
   // Apply vibrancy without restart (macOS)
   try { await window.api.applyVibrancy(!!state.settings.ui?.vibrancy?.enabled); } catch {}
   applyTranslucencyFromSettings();
+  // Re-apply i18n if language changed
+  try { applyI18nFromState(); renderConversations(); renderMessages(); updateSidebarToggleLabel(); } catch {}
   hide(elSettingsModal);
 }
 
 async function testApiSettings() {
   const patch = buildSettingsPatchFromForm();
   elTestApi.disabled = true;
-  elTestApiStatus.textContent = '测试中...';
+  elTestApiStatus.textContent = t('label.testing');
   try {
     const res = await window.api.testApi(patch);
     if (res?.ok) {
       const preview = (res.content || '').slice(0, 60).replace(/\s+/g, ' ');
-      elTestApiStatus.textContent = `成功：${preview || '收到空响应'}`;
+      elTestApiStatus.textContent = t('label.success', { preview: preview || t('label.emptyReply') });
     } else {
-      elTestApiStatus.textContent = `失败：${res?.error || '未知错误'}`;
+      elTestApiStatus.textContent = t('label.failure', { msg: res?.error || t('err.unknown') });
     }
   } catch (e) {
-    elTestApiStatus.textContent = `失败：${e.message}`;
+    elTestApiStatus.textContent = t('label.failure', { msg: e.message });
   } finally {
     elTestApi.disabled = false;
   }
@@ -1146,7 +1163,7 @@ async function applyAvatarCrop() {
     renderMessages();
     closeAvatarCrop();
   } catch (e) {
-    alert('应用裁剪失败：' + (e?.message || e));
+    alert(t('label.failure', { msg: e?.message || e }));
   }
 }
 
@@ -1184,12 +1201,12 @@ async function memNew() {
 }
 
 async function memSave() {
-  const title = elMemTitle.value.trim() || '记忆';
+  const title = elMemTitle.value.trim() || t('label.mem.defaultTitle');
   const content = elMemContent.value.trim();
   const prev = elMemSave.textContent;
   try {
     elMemSave.disabled = true;
-    elMemSave.textContent = '保存中...';
+    elMemSave.textContent = t('label.mem.saving');
     if (!selectedMemId) {
       await window.api.addMemory({ title, content });
     } else {
@@ -1197,10 +1214,10 @@ async function memSave() {
     }
     state.memory = await window.api.listMemory();
     renderMemoryList();
-    elMemSave.textContent = '已保存 ✓';
+    elMemSave.textContent = t('label.mem.saved');
     setTimeout(() => { try { elMemSave.textContent = prev; elMemSave.disabled = false; } catch {} }, 900);
   } catch (e) {
-    alert('保存失败：' + (e?.message || '未知错误'));
+    alert(t('err.saveFailed') + (e?.message || t('err.unknown')));
     elMemSave.textContent = prev;
     elMemSave.disabled = false;
   }
@@ -1208,7 +1225,7 @@ async function memSave() {
 
 async function memDelete() {
   if (!selectedMemId) return;
-  if (!confirm('确定删除该记忆吗？')) return;
+  if (!confirm(t('confirm.deleteMem'))) return;
   await window.api.deleteMemory(selectedMemId);
   state.memory = await window.api.listMemory();
   selectedMemId = null;
@@ -1218,14 +1235,14 @@ async function memDelete() {
 
 async function onSummarize() {
   if (!state.currentId) return;
-  const ok = confirm('将当前对话的要点总结并加入记忆库？');
+  const ok = confirm(t('confirm.summarize'));
   if (!ok) return;
   try {
     const text = await window.api.summarizeToMemory({ conversationId: state.currentId });
-    alert('已加入记忆库:\n\n' + text.slice(0, 400));
+    alert((t('memory.title') + ':\n\n') + text.slice(0, 400));
     state.memory = await window.api.listMemory();
   } catch (e) {
-    alert('总结失败: ' + e.message);
+    alert(t('label.failure', { msg: e.message }));
   }
 }
 
@@ -1242,7 +1259,7 @@ async function refreshLogs() {
       return `${head}\n  ${body}`;
     }).join('\n\n');
   } catch (e) {
-    if (elLogsList) elLogsList.textContent = '读取失败：' + e.message;
+    if (elLogsList) elLogsList.textContent = t('err.readFailed') + e.message;
   }
 }
 
@@ -1362,12 +1379,12 @@ elSaveSettings.addEventListener('click', saveSettings);
 elTestApi.addEventListener('click', testApiSettings);
 elBtnTestNotif?.addEventListener('click', async () => {
   elBtnTestNotif.disabled = true;
-  elProactiveStatus.textContent = '发送测试通知...';
+  elProactiveStatus.textContent = t('label.testNotify.sending');
   try {
     const res = await window.api.testNotify();
-    elProactiveStatus.textContent = res?.ok ? '已发送通知（若未前台显示，请在系统设置中查看并允许）' : `失败：${res?.error || ''}`;
+    elProactiveStatus.textContent = res?.ok ? t('label.testNotify.sent') : t('label.failure', { msg: res?.error || '' });
   } catch (e) {
-    elProactiveStatus.textContent = `失败：${e.message}`;
+    elProactiveStatus.textContent = t('label.failure', { msg: e.message });
   } finally {
     elBtnTestNotif.disabled = false;
   }
@@ -1379,20 +1396,20 @@ try { window.api.onOpenMemory?.(() => openMemoryModal()); } catch {}
 
 elBtnProactiveOnce?.addEventListener('click', async () => {
   elBtnProactiveOnce.disabled = true;
-  elProactiveStatus.textContent = '立即检查中...';
+  elProactiveStatus.textContent = t('label.checkingNow');
   try {
     const res = await window.api.proactiveOnce();
     if (res?.ok) {
-      elProactiveStatus.textContent = `检查完成：发送 ${res.sent} 条 / 会话 ${res.checked}`;
+      elProactiveStatus.textContent = t('label.checkDone', { sent: res.sent, checked: res.checked });
       // refresh after sending
       state.conversationsStore = await window.api.listConversations();
       renderConversations();
       renderMessages();
     } else {
-      elProactiveStatus.textContent = `失败：${res?.error || ''}`;
+      elProactiveStatus.textContent = t('label.failure', { msg: res?.error || '' });
     }
   } catch (e) {
-    elProactiveStatus.textContent = `失败：${e.message}`;
+    elProactiveStatus.textContent = t('label.failure', { msg: e.message });
   } finally {
     elBtnProactiveOnce.disabled = false;
   }
@@ -1481,6 +1498,17 @@ elVibrancySidebarStrength?.addEventListener('input', () => {
   const side = Math.max(0, Math.min(1, Number(elVibrancySidebarStrength.value) / 100 || 0.35));
   applyTranslucency(strength, side);
 });
+// Live preview language switch in Settings (does not persist until Save)
+elLanguage?.addEventListener('change', () => {
+  try {
+    const ui = state.settings.ui || {};
+    state.settings.ui = { ...ui, language: elLanguage.value };
+    applyI18nFromState();
+    renderConversations();
+    renderMessages();
+    updateSidebarToggleLabel();
+  } catch {}
+});
 
 init();
 
@@ -1565,11 +1593,11 @@ try {
   meta.style.display = 'flex';
   meta.style.flexDirection = 'column';
   meta.style.gap = '2px';
-  meta.innerHTML = `<div>将发送 ${arr.length} 个附件</div><div class=\"muted\">点击单项移除</div>`;
+  meta.innerHTML = `<div>${t('label.attachmentsMeta', { n: arr.length })}</div><div class=\"muted\">${t('label.clickToRemove')}</div>`;
   const actions = document.createElement('div');
   actions.className = 'actions';
   const btn = document.createElement('button');
-  btn.textContent = '清空';
+  btn.textContent = t('label.clear');
   btn.addEventListener('click', clearAttachments);
   actions.appendChild(btn);
   elComposerAttachment.appendChild(list);
@@ -1617,7 +1645,7 @@ async function onPickImage() {
     renderAttachment();
     try { autoResizeComposer(); } catch {}
   } catch (e) {
-    alert('选择图片失败：' + e.message);
+    alert(t('label.pickImageFailed') + e.message);
   }
 }
 
@@ -1634,7 +1662,7 @@ async function onPickPdf() {
     renderAttachment();
     try { autoResizeComposer(); } catch {}
   } catch (e) {
-    alert('选择 PDF 失败：' + e.message);
+    alert(t('label.pickPdfFailed') + e.message);
   }
 }
 
@@ -1647,13 +1675,13 @@ function startProactiveCountdown() {
     try {
       const res = await window.api.proactiveStatus();
       if (!elProactiveStatus) return;
-      if (!res?.ok) { elProactiveStatus.textContent = '状态获取失败'; return; }
-      if (!res.enabled) { elProactiveStatus.textContent = '已关闭'; return; }
+      if (!res?.ok) { elProactiveStatus.textContent = t('err.statusFailed'); return; }
+      if (!res.enabled) { elProactiveStatus.textContent = t('label.disabled'); return; }
       const now = res.now || Date.now();
       const nextAt = res.nextAt || 0;
-      if (!nextAt || !res.intervalMs) { elProactiveStatus.textContent = '计时未启动'; return; }
+      if (!nextAt || !res.intervalMs) { elProactiveStatus.textContent = t('label.timerNotStarted'); return; }
       const left = Math.max(0, nextAt - now);
-      elProactiveStatus.textContent = '下一次检查：' + formatDuration(left);
+      elProactiveStatus.textContent = t('label.nextCheck', { duration: formatDuration(left) });
     } catch {
       if (elProactiveStatus) elProactiveStatus.textContent = '';
     }
@@ -1822,7 +1850,7 @@ function updateSidebarToggleLabel() {
   const hidden = app.classList.contains('sidebar-hidden');
   if (elSidebarToggle) {
     elSidebarToggle.textContent = hidden ? '⏵' : '⏴';
-    elSidebarToggle.title = hidden ? '展开会话列表' : '收回会话列表';
+    elSidebarToggle.title = hidden ? t('label.sidebar.expand') : t('label.sidebar.collapse');
   }
 }
 
@@ -1931,18 +1959,18 @@ function startInlineTitleEdit() {
 }
 
 async function onExport(format, includeTs, includeFiles) {
-  if (!state.currentId) return alert('没有选中的对话');
+  if (!state.currentId) return alert(t('label.noSelectedConversation'));
   try {
     const useTs = includeTs === undefined ? (!!state.settings?.ui?.exportIncludeTimestamp ?? true) : !!includeTs;
     const useFiles = includeFiles === undefined ? (!!state.settings?.ui?.exportIncludeAttachments ?? true) : !!includeFiles;
     const res = await window.api.exportConversation({ conversationId: state.currentId, format, includeTimestamp: useTs, includeAttachments: useFiles });
     if (res?.ok) {
-      alert(`导出成功：\n${res.path}`);
+      alert(t('label.exportSuccess', { path: res.path }));
     } else if (!res?.canceled) {
-      alert('导出失败：' + (res?.error || '未知错误'));
+      alert(t('label.failure', { msg: res?.error || t('err.unknown') }));
     }
   } catch (e) {
-    alert('导出失败：' + e.message);
+    alert(t('label.failure', { msg: e.message }));
   }
 }
 
@@ -1952,12 +1980,12 @@ async function onExportAll(format, includeTs, includeFiles) {
     const useFiles = includeFiles === undefined ? (!!state.settings?.ui?.exportIncludeAttachments ?? true) : !!includeFiles;
     const res = await window.api.exportAllConversations({ format, includeTimestamp: useTs, includeAttachments: useFiles });
     if (res?.ok) {
-      alert(`导出成功：\n${res.path}`);
+      alert(t('label.exportSuccess', { path: res.path }));
     } else if (!res?.canceled) {
-      alert('导出失败：' + (res?.error || '未知错误'));
+      alert(t('label.failure', { msg: res?.error || t('err.unknown') }));
     }
   } catch (e) {
-    alert('导出失败：' + e.message);
+    alert(t('label.failure', { msg: e.message }));
   }
 }
 

@@ -65,6 +65,8 @@ function defaultSettings() {
       onProactive: true,
     },
     ui: {
+      // UI language: 'zh-CN' | 'en-US'
+      language: 'zh-CN',
       currentConversationId: '',
       listOrderMode: 'auto', // 'auto' | 'manual'
       conversationOrder: [],

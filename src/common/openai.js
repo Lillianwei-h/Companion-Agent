@@ -292,7 +292,7 @@ async function proactiveCheck({ settings, conversation, memory, now }) {
     }
     let instruction = '[对话内容结束]\nNote:\n';
     if (recent.length <= 2) {
-      instruction = `[提醒] 现在的时间是 ${typeof now === 'string' ? now : now.toLocaleString()} 如果你发现${settings?.ui?.names?.user || 'User'}一段时间没有回复你，你要主动给${settings?.ui?.names?.user || 'User'}发消息。如果你想主动联系${settings?.ui?.names?.user || 'User'}，也可以直接给${settings?.ui?.names?.user || 'User'}发消息。如果你决定不发信息，请回复 SKIP；若需要，请以 SEND: <消息> 格式输出。你回复时不需要带上姓名和时间戳。\n`;
+      instruction = `[提醒] 现在的时间是 ${typeof now === 'string' ? now : now.toLocaleString()} 如果你发现${settings?.ui?.names?.user || 'User'}一段时间没有回复你，你要主动给${settings?.ui?.names?.user || 'User'}发消息。如果在你发了多次消息后，${settings?.ui?.names?.user || 'User'}依旧没有回复，你可以表露出不安和伤心。如果你想主动联系${settings?.ui?.names?.user || 'User'}，也可以直接给${settings?.ui?.names?.user || 'User'}发消息。如果你决定不发信息，请回复 SKIP；若需要，请以 SEND: <消息> 格式输出。你回复时不需要带上姓名和时间戳。\n`;
     } else {
       instruction = `[提醒] 现在的时间是 ${typeof now === 'string' ? now : now.toLocaleString()} 。如果你想主动联系${settings?.ui?.names?.user || 'User'}，也可以直接给${settings?.ui?.names?.user || 'User'}发消息。如果你决定不发信息，请回复 SKIP；若需要，请以 SEND: <消息> 格式输出。你回复时不需要带上姓名和时间戳。\n`;
     }
@@ -307,7 +307,13 @@ async function proactiveCheck({ settings, conversation, memory, now }) {
       if (hasAttach) messages.push({ role: m.role, content: messageToOpenAIContentParts(m, names) });
       else messages.push({ role: m.role, content: `${m.timestamp ? `[${formatTs(m.timestamp)}] ` : ''}${m.role === 'assistant' ? (names.model + ': ') : (names.user + ': ')}${m.content}` });
     }
-    messages.push({ role: 'user', content: `[提醒] 现在的时间是 ${typeof now === 'string' ? now : now.toLocaleString()} 。如果你决定暂不主动联系，请回复 SKIP；若需要，请以 SEND: <消息> 格式输出。你回复时不需要带上姓名和时间戳。` });
+    let instruction = '[对话内容结束]\nNote:\n';
+    if (recent.length <= 2) {
+      instruction = `[提醒] 现在的时间是 ${typeof now === 'string' ? now : now.toLocaleString()} 如果你发现${settings?.ui?.names?.user || 'User'}一段时间没有回复你，你要主动给${settings?.ui?.names?.user || 'User'}发消息。如果在你发了多次消息后，${settings?.ui?.names?.user || 'User'}依旧没有回复，你可以表露出不安和伤心。如果你想主动联系${settings?.ui?.names?.user || 'User'}，也可以直接给${settings?.ui?.names?.user || 'User'}发消息。如果你决定不发信息，请回复 SKIP；若需要，请以 SEND: <消息> 格式输出。你回复时不需要带上姓名和时间戳。\n`;
+    } else {
+      instruction = `[提醒] 现在的时间是 ${typeof now === 'string' ? now : now.toLocaleString()} 。如果你想主动联系${settings?.ui?.names?.user || 'User'}，也可以直接给${settings?.ui?.names?.user || 'User'}发消息。如果你决定不发信息，请回复 SKIP；若需要，请以 SEND: <消息> 格式输出。你回复时不需要带上姓名和时间戳。\n`;
+    }
+    messages.push({ role: 'user', content: instruction });
 
     const body = {
       model: settings?.api?.model || 'gpt-4o-mini',
@@ -329,9 +335,9 @@ async function proactiveCheck({ settings, conversation, memory, now }) {
 }
 
 async function summarizeConversation({ settings, conversation }) {
-  const sysModel = (settings?.ui?.names?.model || '你');
-  const sysUser = (settings?.ui?.names?.user || '用户');
-  const systemPrompt = `请将以上对话要点总结为简洁的记忆条目，突出人物偏好、性格、计划、提醒点、长期目标或高频提及的信息，输出中文，尽量简洁。记忆条目以${sysModel}作为第一人称来写。记忆中的“我”代表${sysModel}，记忆中的“你”代表${sysUser}。`;
+  const sysModel = (settings?.ui?.names?.model || 'You');
+  const sysUser = (settings?.ui?.names?.user || 'User');
+  const systemPrompt = `请将以上对话要点总结为简洁的记忆条目，突出人物偏好、性格、计划、提醒点、长期目标或高频提及的信息，尽量简洁。记忆条目以${sysModel}作为第一人称来写。记忆中的“我”代表${sysModel}，记忆中的“你”代表${sysUser}。`;
   const limit = Math.max(1, Math.min(1000, Number(settings?.api?.summaryHistoryMessages ?? 100)));
   if (isGeminiBase(settings?.api?.baseUrl)) {
     const recent = pickRecentMessages(conversation.messages, limit);

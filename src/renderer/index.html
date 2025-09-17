@@ -13,46 +13,46 @@
         </div>
         <div id="conversations" class="conversation-list"></div>
         <div class="sidebar-footer">
-          <button id="btn-memory">记忆库</button>
-          <button id="btn-settings">设置</button>
+          <button id="btn-memory" data-i18n="nav.memory">记忆库</button>
+          <button id="btn-settings" data-i18n="nav.settings">设置</button>
         </div>
       </aside>
       <button id="btn-sidebar-toggle" class="sidebar-toggle" title="收回会话列表">⏴</button>
       <main class="chat">
         <div class="chat-header">
           <div class="chat-title-row">
-            <div id="chat-title" class="chat-title">加载中...</div>
+            <div id="chat-title" class="chat-title" data-i18n="chat.loading">加载中...</div>
             <div id="typing-indicator" class="hidden typing-indicator"></div>
           </div>
           <div class="chat-actions">
-            <button id="btn-new-chat" title="新建对话">+</button>
-            <button id="btn-summarize">记忆</button>
+            <button id="btn-new-chat" title="新建对话" data-i18n-title="chat.newChat" aria-label="新建对话">+</button>
+            <button id="btn-summarize" data-i18n="chat.summarize">记忆</button>
             <div class="export-menu">
-              <button id="btn-export-menu">导出 ▾</button>
+              <button id="btn-export-menu" data-i18n="export.menu">导出 ▾</button>
               <div id="export-dropdown" class="dropdown hidden">
               <div class="dropdown-header">
-                  <label class="inline small">包含时间戳 <input id="export-include-ts" type="checkbox" checked /></label>
-                  <label class="inline small" style="margin-left:8px;">包含附件 <input id="export-include-files" type="checkbox" checked /></label>
+                  <label id="label-export-ts" class="inline small" data-i18n="export.includeTs">包含时间戳 <input id="export-include-ts" type="checkbox" checked /></label>
+                  <label id="label-export-files" class="inline small" data-i18n="export.includeFiles">包含附件 <input id="export-include-files" type="checkbox" checked /></label>
                 </div>
-                <button data-action="current-json">导出当前（JSON）</button>
-                <button data-action="current-md">导出当前（Markdown）</button>
-                <button data-action="all-json">导出全部（JSON）</button>
-                <button data-action="all-md">导出全部（Markdown）</button>
+                <button data-action="current-json" data-i18n="export.currentJson">导出当前（JSON）</button>
+                <button data-action="current-md" data-i18n="export.currentMd">导出当前（Markdown）</button>
+                <button data-action="all-json" data-i18n="export.allJson">导出全部（JSON）</button>
+                <button data-action="all-md" data-i18n="export.allMd">导出全部（Markdown）</button>
               </div>
             </div>
             <!-- <button id="btn-delete-current" class="danger">删除当前对话</button> -->
           </div>
         </div>
         <div id="messages" class="messages"></div>
-        <div id="chat-resize" class="chat-resizer" title="拖动调整输入区高度"></div>
+        <div id="chat-resize" class="chat-resizer" title="拖动调整输入区高度" data-i18n-title="chat.resizeHint"></div>
         <div class="composer">
           <div id="composer-attachment" class="attachment hidden"></div>
           <div class="composer-row">
-            <textarea id="input" rows="4" placeholder="输入内容，按发送..."></textarea>
+            <textarea id="input" rows="4" placeholder="输入内容，按发送..." data-i18n-placeholder="chat.inputPlaceholder"></textarea>
             <div class="composer-actions">
-              <button id="btn-attach-image" title="添加图片">图片</button>
-              <button id="btn-attach-pdf" title="添加PDF">PDF</button>
-              <button id="btn-send" class="primary">发送</button>
+              <button id="btn-attach-image" title="添加图片" data-i18n="chat.attachImage" data-i18n-title="chat.addImage">图片</button>
+              <button id="btn-attach-pdf" title="添加PDF" data-i18n="chat.attachPdf" data-i18n-title="chat.addPdf">PDF</button>
+              <button id="btn-send" class="primary" data-i18n="chat.send">发送</button>
             </div>
           </div>
         </div>
@@ -63,80 +63,92 @@
     <div id="settings-modal" class="modal hidden">
       <div class="modal-content">
         <div class="modal-header">
-          <h2>设置</h2>
+          <h2 id="settings-title" data-i18n="settings.title">设置</h2>
           <button id="close-settings" class="icon">✕</button>
         </div>
         <div class="modal-body">
           <section>
-            <h3>人格设定（System Prompt）</h3>
+            <h3 id="section-persona-title" data-i18n="settings.persona">人格设定（System Prompt）</h3>
             <textarea id="persona" rows="4"></textarea>
           </section>
           <section class="grid-2">
             <div>
-              <h3>API 配置</h3>
+              <h3 id="section-api-title" data-i18n="settings.api">API 配置</h3>
               <label>Base URL <input id="api-base" type="text" placeholder="https://api.openai.com" /></label>
               <label>API Key <input id="api-key" type="password" placeholder="sk-..." /></label>
               <label>Model <input id="api-model" type="text" placeholder="gpt-4o-mini" /></label>
-              <label>Max New Tokens <input id="api-max" type="number" min="1" max="10000" /></label>
-              <label>Temperature <input id="api-temp" type="number" step="0.1" min="0" max="2" /></label>
-              <label>上下文消息条数 <input id="api-history" type="number" min="1" max="500" /></label>
-              <label>总结上下文条数 <input id="api-summary-history" type="number" min="1" max="1000" /></label>
-              <div style="margin-top:8px; display:flex; gap:8px; align-items:center;">
-                <button id="test-api">测试 API</button>
+              <div style="margin-top:20px; display:flex; gap:8px; align-items:center;margin-bottom:20px;">
+                <button id="test-api" data-i18n="settings.testApi">测试 API</button>
                 <span id="test-api-status" class="muted"></span>
               </div>
+              <label>Max New Tokens <input id="api-max" type="number" min="1" max="10000" /></label>
+              <label>Temperature <input id="api-temp" type="number" step="0.1" min="0" max="2" /></label>
+              <label id="label-api-history" data-i18n="settings.apiHistory">上下文消息条数 <input id="api-history" type="number" min="1" max="500" /></label>
+              <label id="label-api-summary-history" data-i18n="settings.apiSummaryHistory">总结上下文条数 <input id="api-summary-history" type="number" min="1" max="1000" /></label>
             </div>
             <div>
-              <h3>称呼</h3>
-              <label>用户称呼 <input id="name-user" type="text" placeholder="我 / User" /></label>
-              <label>助手称呼 <input id="name-model" type="text" placeholder="小助手 / You" /></label>
-              <h3>头像</h3>
+              <h3 id="section-names-title" data-i18n="settings.names">称呼</h3>
+              <label id="label-name-user" data-i18n="settings.nameUser">用户称呼 <input id="name-user" type="text" placeholder="我 / User" /></label>
+              <label id="label-name-model" data-i18n="settings.nameModel">助手称呼 <input id="name-model" type="text" placeholder="小助手 / You" /></label>
+              <h3 id="section-avatars-title" data-i18n="settings.avatars">头像</h3>
               <div class="avatar-row">
                 <div>
-                  <div>我的头像</div>
+                  <div id="label-avatar-user" data-i18n="settings.avatarUser">我的头像</div>
                   <img id="avatar-user-preview" class="avatar" alt="user" />
-                  <button id="pick-avatar-user">选择图片</button>
+                  <button id="pick-avatar-user" data-i18n="settings.chooseImage">选择图片</button>
                 </div>
                 <div>
-                  <div>模型头像</div>
+                  <div id="label-avatar-agent" data-i18n="settings.avatarAgent">模型头像</div>
                   <img id="avatar-agent-preview" class="avatar" alt="agent" />
-                  <button id="pick-avatar-agent">选择图片</button>
+                  <button id="pick-avatar-agent" data-i18n="settings.chooseImage">选择图片</button>
                 </div>
               </div>
-              <h3>通知与主动联系</h3>
-              <label class="inline">启用主动联系 <input id="proactive-enabled" type="checkbox" /></label>
-              <label>间隔（分钟） <input id="proactive-interval" type="number" min="1" max="240" /></label>
-              <label class="inline">新消息显示系统通知 <input id="notif-proactive" type="checkbox" /></label>
-              <label class="inline">新建对话时自动打招呼 <input id="greet-on-create" type="checkbox" /></label>
+              <h3 id="section-proactive-title" data-i18n="settings.proactive">通知与主动联系</h3>
+              <label class="inline" id="label-proactive-enabled" data-i18n="settings.proactiveEnabled">启用主动联系 <input id="proactive-enabled" type="checkbox" /></label>
+              <label id="label-proactive-interval" data-i18n="settings.proactiveInterval">间隔（分钟） <input id="proactive-interval" type="number" min="1" max="240" /></label>
+              <label class="inline" id="label-notif-proactive" data-i18n="settings.notifProactive">新消息显示系统通知 <input id="notif-proactive" type="checkbox" /></label>
+              <label class="inline" id="label-greet-on-create" data-i18n="settings.greetOnCreate">新建对话时自动打招呼 <input id="greet-on-create" type="checkbox" /></label>
               <div style="margin-top:8px; display:flex; gap:8px; align-items:center; flex-wrap: wrap;">
-                <button id="btn-test-notif">发送测试通知</button>
-                <button id="btn-proactive-once">立即检查一次</button>
+                <button id="btn-test-notif" data-i18n="settings.sendTestNotif">发送测试通知</button>
+                <button id="btn-proactive-once" data-i18n="settings.runOnce">立即检查一次</button>
                 <span id="proactive-status" class="muted"></span>
               </div>
             </div>
           </section>
           <section>
-            <h3>外观</h3>
-              <label class="inline">启用毛玻璃（macOS） <input id="vibrancy-enabled" type="checkbox" /></label>
-              <div style="margin-top:8px; display:flex; gap:16px; align-items:center; flex-wrap: wrap;">
-                <label style="flex: 1 1 50%;">半透明强度 <input id="vibrancy-strength" type="range" min="0" max="100" step="5" /></label>
-                <label style="flex: 1 1 50%;">侧栏半透明强度 <input id="vibrancy-sidebar-strength" type="range" min="0" max="100" step="5" /></label>
+            <h3 id="section-appearance-title" data-i18n="settings.appearance">外观</h3>
+              <label class="inline" id="label-vibrancy-enabled" data-i18n="settings.vibrancy">启用毛玻璃（macOS） <input id="vibrancy-enabled" type="checkbox" /></label>
+              <div style="margin-top:8px; display:flex; gap:0px; align-items:center; flex-wrap: wrap;">
+                <label id="label-vibrancy-strength" style="flex: 1 1 50%;" data-i18n="settings.vibrancyStrength">半透明强度 <input id="vibrancy-strength" type="range" min="0" max="100" step="5" /></label>
+                <label id="label-vibrancy-sidebar-strength" style="flex: 1 1 50%;" data-i18n="settings.vibrancySidebar">侧栏半透明强度 <input id="vibrancy-sidebar-strength" type="range" min="0" max="100" step="5" /></label>
               </div>
-              <div class="muted">提示：较高强度更透明。轻度可读性更强。</div>
+              <!-- <div class="muted" id="hint-vibrancy" data-i18n="settings.vibrancyHint">提示：较高强度更透明。轻度可读性更强。</div> -->
           </section>
           <section>
-            <h3>调试与日志</h3>
+            <h3 id="section-language-title" data-i18n="settings.language">界面语言</h3>
+              <div style="margin:6px 0 10px 0;">
+                <!-- <label id="label-ui-language" data-i18n="settings.language">界面语言  -->
+                  <select id="ui-language">
+                    <option value="system">系统默认 / System</option>
+                    <option value="zh-CN">中文（简体）</option>
+                    <option value="en-US">English</option>
+                  </select>
+                <!-- </label> -->
+              </div>
+          </section>
+          <section>
+            <h3 id="section-debug-title" data-i18n="settings.debug">调试与日志</h3>
             <div style="display:flex; gap:8px; margin-bottom:8px; flex-wrap: wrap;">
-              <button id="btn-logs-refresh">刷新日志</button>
-              <button id="btn-logs-clear" class="danger">清空日志</button>
-              <span class="muted">显示最近 200 条记录（包含 SKIP）</span>
+              <button id="btn-logs-refresh" data-i18n="settings.logsRefresh">刷新日志</button>
+              <button id="btn-logs-clear" class="danger" data-i18n="settings.logsClear">清空日志</button>
+              <span class="muted" id="label-logs-hint" data-i18n="settings.logsHint">显示最近 200 条记录（包含 SKIP）</span>
               <!-- <button id="btn-migrate-attachments">迁移历史附件</button> -->
             </div>
             <div id="logs-list" style="max-height: 240px; overflow:auto; background: var(--panel); border:1px solid var(--border); border-radius:8px; padding:8px; white-space:pre-wrap; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size:12px; backdrop-filter: blur(6px) saturate(120%); -webkit-backdrop-filter: blur(6px) saturate(120%);"></div>
           </section>
         </div>
         <div class="modal-footer">
-          <button id="save-settings" class="primary">保存</button>
+          <button id="save-settings" class="primary" data-i18n="common.save">保存</button>
         </div>
       </div>
     </div>
@@ -145,18 +157,18 @@
     <div id="memory-modal" class="modal hidden">
       <div class="modal-content large">
         <div class="modal-header">
-          <h2>记忆库</h2>
+          <h2 id="memory-title" data-i18n="memory.title">记忆库</h2>
           <button id="close-memory" class="icon">✕</button>
         </div>
         <div class="modal-body grid-2">
           <div class="memory-list" id="memory-list"></div>
           <div class="memory-editor">
-            <input id="mem-title" type="text" placeholder="标题" />
-            <textarea id="mem-content" rows="16" placeholder="内容"></textarea>
+            <input id="mem-title" type="text" placeholder="标题" data-i18n-placeholder="memory.titlePlaceholder" />
+            <textarea id="mem-content" rows="16" placeholder="内容" data-i18n-placeholder="memory.contentPlaceholder"></textarea>
             <div class="mem-actions">
-              <button id="mem-new">新建</button>
-              <button id="mem-save" class="primary">保存</button>
-              <button id="mem-delete" class="danger">删除</button>
+              <button id="mem-new" data-i18n="common.new">新建</button>
+              <button id="mem-save" class="primary" data-i18n="common.save">保存</button>
+              <button id="mem-delete" class="danger" data-i18n="common.delete">删除</button>
             </div>
           </div>
         </div>
@@ -177,13 +189,13 @@
     <div id="avatar-crop-modal" class="modal hidden">
       <div class="modal-content medium">
         <div class="modal-header">
-          <h2>裁剪头像</h2>
+          <h2 id="avatar-crop-title" data-i18n="avatar.cropTitle">裁剪头像</h2>
           <button id="avatar-crop-close" class="icon">✕</button>
         </div>
         <div class="modal-body">
           <div class="crop-container">
             <div id="crop-stage" class="crop-stage">
-              <img id="avatar-crop-img" alt="要裁剪的图片" />
+              <img id="avatar-crop-img" alt="要裁剪的图片" data-i18n-alt="avatar.cropAlt" />
               <div id="crop-layer" class="crop-layer">
                 <div id="crop-rect" class="crop-rect">
                   <div class="handle handle-nw" data-dir="nw"></div>
@@ -201,13 +213,14 @@
         </div>
         <div class="modal-footer">
           <div style="display:flex; gap:8px; justify-content:flex-end; width:100%;">
-            <button id="avatar-crop-cancel">取消</button>
-            <button id="avatar-crop-apply" class="primary">使用</button>
+            <button id="avatar-crop-cancel" data-i18n="common.cancel">取消</button>
+            <button id="avatar-crop-apply" class="primary" data-i18n="avatar.apply">使用</button>
           </div>
         </div>
       </div>
     </div>
 
+    <script src="./i18n.js"></script>
     <script src="./renderer.js"></script>
   </body>
   </html>

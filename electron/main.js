@@ -327,6 +327,26 @@ function formatStartTime(date) {
   }
 }
 
+function getLang() {
+  try {
+    const s = Stores.settings.read() || {};
+    const pref = s.ui?.language || 'zh-CN';
+    if (!pref || pref === 'system') {
+      // Prefer Electron's locale; fallback to Intl
+      let loc = '';
+      try { loc = app.getLocale ? app.getLocale() : ''; } catch {}
+      if (!loc) {
+        try { loc = Intl.DateTimeFormat().resolvedOptions().locale || ''; } catch {}
+      }
+      if (String(loc).toLowerCase().startsWith('zh')) return 'zh-CN';
+      return 'en-US';
+    }
+    return pref;
+  } catch {
+    return 'zh-CN';
+  }
+}
+
 function startProactiveLoop() {
   if (proactiveTimer) clearInterval(proactiveTimer);
 
@@ -637,9 +657,10 @@ ipcMain.handle('conversations:summarizeToMemory', async (_evt, { conversationId 
   if (!conv) throw new Error('Conversation not found');
   const text = await summarizeConversation({ settings, conversation: conv });
   const mem = Stores.memory.read();
+  const lang = getLang();
   mem.items.push({
     id: `mem_${Date.now()}`,
-    title: conv.title + ' 摘要',
+    title: conv.title + (lang === 'en-US' ? ' Summary' : ' 摘要'),
     content: text,
     createdAt: new Date().toISOString(),
     tags: ['summary'],
@@ -704,9 +725,10 @@ ipcMain.handle('api:test', async (_evt, patch) => {
 // Debug: send a test system notification (macOS will prompt permission on first use)
 ipcMain.handle('debug:notify', async () => {
   try {
+    const lang = getLang();
     const notif = new Notification({
-      title: '测试通知 / Test Notification',
-      body: '这是来自应用的测试通知。',
+      title: lang === 'en-US' ? 'Test Notification' : '测试通知',
+      body: lang === 'en-US' ? 'This is a test notification from the app.' : '这是来自应用的测试通知。',
     });
     notif.show();
     return { ok: true };
@@ -753,10 +775,10 @@ ipcMain.handle('proactive:once', async () => {
     const focused = mainWindow && mainWindow.isFocused();
     const s = settings?.notifications?.onProactive !== false; // default true
     if (!focused && s && sent > 0) {
-      const notif = new Notification({
-        title: '已触发一次主动检查',
-        body: `新增 ${sent} 条自动消息`,
-      });
+      const lang = getLang();
+      const title = lang === 'en-US' ? 'Proactive Check Triggered' : '已触发一次主动检查';
+      const body = lang === 'en-US' ? `Added ${sent} automatic message(s)` : `新增 ${sent} 条自动消息`;
+      const notif = new Notification({ title, body });
       notif.show();
     }
     return { ok: true, checked: conv ? 1 : 0, sent };
@@ -1144,7 +1166,8 @@ ipcMain.handle('conversations:exportAll', async (_evt, { format, includeTimestam
 
 function conversationsToMarkdown(convs, includeTs = true, opts = {}) {
   const parts = [];
-  parts.push(`# 所有对话`);
+  const lang = getLang();
+  parts.push(lang === 'en-US' ? '# All Conversations' : '# 所有对话');
   parts.push('');
   for (const conv of convs) {
     // local map from global map if provided
