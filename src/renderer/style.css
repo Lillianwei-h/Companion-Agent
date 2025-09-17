@@ -87,6 +87,8 @@ body {
 .dropdown-header { padding: 8px 12px; border-bottom: 1px solid var(--border); }
 label.small { font-size: 12px; }
 .chat-title-row { display: flex; align-items: center; gap: 8px; transition: margin-left .25s ease; margin-left: 12px; }
+/* macOS: leave space for traffic lights (hiddenInset title bar) */
+body.macos .chat-title-row { margin-left: 72px; }
 .typing-indicator { font-size: inherit; color: var(--text); }
 /* Keep interactive elements clickable (not draggable region) */
 .chat-actions, .chat-actions *, #chat-title, #typing-indicator, button, input, textarea, .composer, .sidebar, .messages, .modal, .modal * { -webkit-app-region: no-drag; }
@@ -166,7 +168,17 @@ input, textarea, button, select { font: inherit; }
 #image-modal .image-viewer-actions button { backdrop-filter: blur(8px) saturate(120%); -webkit-backdrop-filter: blur(8px) saturate(120%); background: var(--button-bg); color: var(--button-fg); border: 1px solid var(--button-border); border-radius: 10px; padding: 8px 12px; box-shadow: 0 6px 24px rgba(0,0,0,0.35); opacity: 0.8; transition: opacity .2s ease, background-color .2s ease; }
 #image-modal .image-viewer-actions button:hover, #image-modal .image-viewer-actions button:focus-visible { opacity: 1; }
 
+/* Styled select: language picker */
+.select { position: relative; display: inline-block; }
+.select select { -webkit-appearance: none; appearance: none; background: var(--field-bg); color: var(--text); border: 1px solid var(--field-border); border-radius: 8px; padding: 8px 34px 8px 10px; min-width: 220px; backdrop-filter: blur(6px) saturate(120%); -webkit-backdrop-filter: blur(6px) saturate(120%); }
+.select::after { content: '▾'; position: absolute; right: 10px; top: 50%; transform: translateY(-50%); color: var(--muted); pointer-events: none; font-size: 14px; }
+.select select:focus { outline: 2px solid var(--accent-2); outline-offset: 0; border-color: transparent; }
+.select select:hover { border-color: var(--button-border); }
+
 .avatar-row { display: flex; gap: 24px; align-items: center; }
+/* Make avatar previews in settings clickable */
+#avatar-user-preview, #avatar-agent-preview { cursor: pointer; border: 2px solid transparent; }
+#avatar-user-preview:hover, #avatar-agent-preview:hover { border-color: var(--accent); }
 
 .memory-list { border-right: 1px solid var(--border); max-height: 60vh; overflow: auto; }
 .memory-item { padding: 10px 12px; border-bottom: 1px solid var(--border); cursor: pointer; }

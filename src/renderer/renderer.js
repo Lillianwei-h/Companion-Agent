@@ -1,4 +1,9 @@
 // i18n helpers are provided by src/renderer/i18n.js
+// Tag body with platform class for OS-specific tweaks (e.g., macOS traffic lights spacing)
+try {
+  const isMac = navigator.platform && /Mac/i.test(navigator.platform);
+  if (isMac) document.body.classList.add('macos');
+} catch {}
 function applyI18nFromState() {
   try {
     const pref = state?.settings?.ui?.language || 'zh-CN';
@@ -98,8 +103,6 @@ const elNameUser = document.getElementById('name-user');
 const elNameModel = document.getElementById('name-model');
 const elAvatarUserPreview = document.getElementById('avatar-user-preview');
 const elAvatarAgentPreview = document.getElementById('avatar-agent-preview');
-const elPickAvatarUser = document.getElementById('pick-avatar-user');
-const elPickAvatarAgent = document.getElementById('pick-avatar-agent');
 
 const elMemoryModal = document.getElementById('memory-modal');
 const elOpenMemory = document.getElementById('btn-memory');
@@ -1414,8 +1417,9 @@ elBtnProactiveOnce?.addEventListener('click', async () => {
     elBtnProactiveOnce.disabled = false;
   }
 });
-elPickAvatarUser.addEventListener('click', () => pickAvatar('user'));
-elPickAvatarAgent.addEventListener('click', () => pickAvatar('agent'));
+// Click on avatar images to choose and crop
+elAvatarUserPreview?.addEventListener('click', () => pickAvatar('user'));
+elAvatarAgentPreview?.addEventListener('click', () => pickAvatar('agent'));
 
 // Avatar crop modal events
 elAvatarCropClose?.addEventListener('click', () => { try { closeAvatarCrop(); } catch {} });
