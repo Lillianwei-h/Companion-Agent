@@ -71,7 +71,6 @@ async function geminiGenerateWithParts({ settings, parts }) {
     { category: 'HARM_CATEGORY_DANGEROUS_CONTENT', threshold: 'BLOCK_NONE' },
     { category: 'HARM_CATEGORY_CIVIC_INTEGRITY', threshold: 'BLOCK_NONE' }
   ];
-  console.log('Gemini generate parts:', { model, partsCount: (parts || []).length });
   const resp = await ai.models.generateContent({
     model, contents: parts, config: {
       maxOutputTokens: settings?.api?.maxTokens ?? 256,
@@ -79,7 +78,6 @@ async function geminiGenerateWithParts({ settings, parts }) {
       safetySettings: safetySettings
     }
   });
-  console.log('Gemini response (parts):', resp);
   const content = (resp && (resp.text || resp.output_text || '').toString().trim()) || '';
   return content;
 }
@@ -325,7 +323,6 @@ async function proactiveCheck({ settings, conversation, memory, now }) {
     const json = await chatCompletions({ baseUrl: settings?.api?.baseUrl, apiKey: settings?.api?.apiKey, body });
     content = json?.choices?.[0]?.message?.content?.trim() || '';
   }
-  console.log('Proactive check result:', content);
   if (!content) return { action: 'SKIP', raw: '' };
   if (content.toUpperCase().startsWith('SKIP')) return { action: 'SKIP', raw: content };
   if (content.toUpperCase().startsWith('SEND:')) {
