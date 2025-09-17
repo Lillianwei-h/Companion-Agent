@@ -72,7 +72,13 @@ async function geminiGenerateWithParts({ settings, parts }) {
     { category: 'HARM_CATEGORY_CIVIC_INTEGRITY', threshold: 'BLOCK_NONE' }
   ];
   console.log('Gemini generate parts:', { model, partsCount: (parts || []).length });
-  const resp = await ai.models.generateContent({ model, contents: parts, config: { safetySettings } });
+  const resp = await ai.models.generateContent({
+    model, contents: parts, config: {
+      maxOutputTokens: settings?.api?.maxTokens ?? 256,
+      temperature: settings?.api?.temperature ?? 0.7,
+      safetySettings: safetySettings
+    }
+  });
   console.log('Gemini response (parts):', resp);
   const content = (resp && (resp.text || resp.output_text || '').toString().trim()) || '';
   return content;
@@ -209,7 +215,7 @@ async function callChat({ settings, conversation, memory }) {
     const body = {
       model: settings?.api?.model || 'gpt-5-mini',
       messages,
-      max_tokens: settings?.api?.maxTokens ?? 256,
+      max_completion_tokens: settings?.api?.maxTokens ?? 256,
       temperature: settings?.api?.temperature ?? 0.7,
       stream: false,
     };
@@ -235,7 +241,7 @@ async function initialGreeting({ settings, memory }) {
     const body = {
       model: settings?.api?.model || 'gpt-4o-mini',
       messages,
-      max_tokens: settings?.api?.maxTokens ?? 256,
+      max_completion_tokens: settings?.api?.maxTokens ?? 256,
       temperature: settings?.api?.temperature ?? 0.7,
       stream: false,
     };
@@ -306,7 +312,7 @@ async function proactiveCheck({ settings, conversation, memory, now }) {
     const body = {
       model: settings?.api?.model || 'gpt-4o-mini',
       messages,
-      max_tokens: settings?.api?.maxTokens ?? 256,
+      max_completion_tokens: settings?.api?.maxTokens ?? 256,
       temperature: settings?.api?.temperature ?? 0.7,
       stream: false,
     };
@@ -379,7 +385,7 @@ async function summarizeConversation({ settings, conversation }) {
     const body = {
       model: settings?.api?.model || 'gpt-4o-mini',
       messages,
-      max_tokens: settings?.api?.maxTokens ?? 256,
+      max_completion_tokens: settings?.api?.maxTokens ?? 256,
       temperature: 0.5,
       stream: false,
     };
@@ -401,7 +407,7 @@ async function testApi({ settings }) {
     const body = {
       model: settings?.api?.model || 'gpt-4o-mini',
       messages,
-      max_tokens: 5,
+      max_completion_tokens: 5,
       temperature: 0,
       stream: false,
     };

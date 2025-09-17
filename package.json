@@ -12,7 +12,10 @@
     "pack": "echo 'configure electron-builder if needed'",
     "dist": "electron-builder --mac",
     "dist:arm64": "electron-builder --mac --arm64",
-    "dist:x64": "electron-builder --mac --x64"
+    "dist:x64": "electron-builder --mac --x64",
+    "dist:win": "electron-builder --win",
+    "dist:win:x64": "electron-builder --win --x64",
+    "dist:win:arm64": "electron-builder --win --arm64"
   },
   "dependencies": {
     "@google/genai": "^0.3.1",
@@ -38,6 +41,19 @@
       "icon": "build/icon.icns",
       "category": "public.app-category.productivity",
       "target": ["dmg", "zip"]
+    },
+    "win": {
+      "icon": "build/icon.ico",
+      "target": ["nsis", "zip"],
+      "artifactName": "${productName}-Setup-${version}-${arch}.${ext}"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Companion Agent"
     }
   }
 }
