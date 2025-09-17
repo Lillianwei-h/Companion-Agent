@@ -9,6 +9,14 @@ let proactiveTimer = null;
 let proactiveIntervalMs = 0;
 let proactiveNextAt = 0; // epoch ms for next scheduled proactive tick
 
+// Some Linux environments have GPU/Compositor issues causing black windows.
+// Disable GPU on Linux to prefer stability over effects.
+try {
+  if (process.platform === 'linux') {
+    app.disableHardwareAcceleration();
+  }
+} catch {}
+
 function pad2(n) { return String(n).padStart(2, '0'); }
 
 function buildAttachmentRelPath(conversationId, messageId, srcPath, now = new Date()) {
@@ -389,8 +397,9 @@ async function maybeSendProactive(conversation, settings) {
 
       const focused = mainWindow && mainWindow.isFocused();
       if (!focused && settings?.notifications?.onProactive) {
+        const who = (settings?.ui?.names?.model || '小助手');
         const notif = new Notification({
-          title: '来自' + settings?.ui?.names?.model || '穆' + ' 的新消息',
+          title: '来自' + who + ' 的新消息',
           body: result.message.slice(0, 120),
         });
         notif.show();

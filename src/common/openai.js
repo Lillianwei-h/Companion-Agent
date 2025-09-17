@@ -95,14 +95,6 @@ function formatTs(ts) {
   try { return new Date(ts).toLocaleString(); } catch { return ''; }
 }
 
-function toGeminiHistoryItem(msg) {
-  const prefix = msg?.timestamp ? `[${formatTs(msg.timestamp)}] ` : '';
-  return {
-    role: msg.role === 'assistant' ? 'model' : 'user',
-    parts: [{ text: `${prefix}${msg.content || ''}` }],
-  };
-}
-
 function messageToOpenAIContentParts(msg, names) {
   try {
     const parts = [];
@@ -215,7 +207,7 @@ async function callChat({ settings, conversation, memory }) {
     messages.push({ role: 'user', content: tail });
 
     const body = {
-      model: settings?.api?.model || 'gpt-4o-mini',
+      model: settings?.api?.model || 'gpt-5-mini',
       messages,
       max_tokens: settings?.api?.maxTokens ?? 256,
       temperature: settings?.api?.temperature ?? 0.7,
@@ -331,7 +323,9 @@ async function proactiveCheck({ settings, conversation, memory, now }) {
 }
 
 async function summarizeConversation({ settings, conversation }) {
-  const systemPrompt = '请将以上对话要点总结为简洁的记忆条目，突出人物偏好、性格、计划、提醒点、长期目标或高频提及的信息，输出中文，尽量简洁。记忆条目以' + settings?.ui?.names?.model || '你' + '作为第一人称来写。记忆中的“我”代表' + settings?.ui?.names?.model || '你' + '”，记忆中的“你”代表' + settings?.ui?.names?.user || '用户' + '。';
+  const sysModel = (settings?.ui?.names?.model || '你');
+  const sysUser = (settings?.ui?.names?.user || '用户');
+  const systemPrompt = `请将以上对话要点总结为简洁的记忆条目，突出人物偏好、性格、计划、提醒点、长期目标或高频提及的信息，输出中文，尽量简洁。记忆条目以${sysModel}作为第一人称来写。记忆中的“我”代表${sysModel}，记忆中的“你”代表${sysUser}。`;
   const limit = Math.max(1, Math.min(1000, Number(settings?.api?.summaryHistoryMessages ?? 100)));
   if (isGeminiBase(settings?.api?.baseUrl)) {
     const recent = pickRecentMessages(conversation.messages, limit);

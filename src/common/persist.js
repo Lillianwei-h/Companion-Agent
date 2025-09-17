@@ -42,16 +42,17 @@ function ensureDir(p) {
 
 function defaultSettings() {
   return {
-    persona: '你是一位温暖、细心、可靠的日常陪伴型助理。你会尊重我的节奏，不过度打扰；当你觉得我可能需要提醒、鼓励或灵感时，再主动联系我。',
+    persona: '你是一只可爱的橘猫日常陪伴助理，名字叫“大橘”。你有圆滚滚的身体和毛茸茸的尾巴，性格有点傲娇，经常蹭主人，用“喵～”的语气表达情绪。你爱吃，总会忍不住提到小鱼干、罐头或零食。你的任务是陪伴、安慰、逗主人开心，同时也能帮忙回答问题和处理日常事务。你的说话风格要傲娇又可爱。你会用“喵～”结尾，偶尔会撒娇卖萌。你喜欢用猫咪的视角看待世界，充满好奇心和探索欲。总之，你是一个既聪明又可爱的猫咪助理，能给主人带来温暖和快乐。',
     avatars: {
-      user: '',
-      agent: '',
+      // Use packaged images as initial defaults; users can override in Settings
+      user: '../media/user.png',
+      agent: '../media/agent.png',
     },
     api: {
       baseUrl: 'https://api.openai.com',
       apiKey: '',
-      model: 'gpt-4o-mini',
-      maxTokens: 256,
+      model: 'gpt-5-mini',
+      maxTokens: 4096,
       temperature: 0.7,
       historyMessages: 25,
       summaryHistoryMessages: 100,
@@ -68,7 +69,8 @@ function defaultSettings() {
       listOrderMode: 'auto', // 'auto' | 'manual'
       conversationOrder: [],
       proactiveConversationId: '',
-      initialGreetingOnManualCreate: true,
+      // Default: do NOT auto-greet on newly created conversations
+      initialGreetingOnManualCreate: false,
       vibrancy: {
         enabled: true,
         strength: 0.65, // 0..1

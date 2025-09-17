@@ -1,3 +1,9 @@
+// Default avatars packaged with the app (relative to renderer index.html)
+const DEFAULT_AVATARS = {
+  user: '../media/user.png',
+  agent: '../media/agent.png',
+};
+
 const state = {
   settings: null,
   conversationsStore: { conversations: [] },
@@ -41,7 +47,7 @@ const elTyping = document.getElementById('typing-indicator');
 const elLogsList = document.getElementById('logs-list');
 const elLogsRefresh = document.getElementById('btn-logs-refresh');
 const elLogsClear = document.getElementById('btn-logs-clear');
-const elMigrateAttachments = document.getElementById('btn-migrate-attachments');
+// const elMigrateAttachments = document.getElementById('btn-migrate-attachments');
 const elChat = document.querySelector('.chat');
 const elChatResizer = document.getElementById('chat-resize');
 const elAttachBtn = document.getElementById('btn-attach-image');
@@ -144,7 +150,8 @@ async function init() {
 
   // Initialize composer height from CSS var if present
   if (!getComputedStyle(elChat).getPropertyValue('--composer-height')) {
-    elChat.style.setProperty('--composer-height', '140px');
+    // Slightly taller default composer height for better typing comfort
+    elChat.style.setProperty('--composer-height', '160px');
   }
   setupChatResizer();
   // Initial autosize for empty input
@@ -369,8 +376,9 @@ async function deleteConversationById(id) {
 }
 
 function avatarSrc(role) {
-  if (role === 'user') return state.settings?.avatars?.user || '';
-  if (role === 'assistant') return state.settings?.avatars?.agent || '';
+  // Prefer user-configured avatars; fall back to packaged defaults
+  if (role === 'user') return state.settings?.avatars?.user || DEFAULT_AVATARS.user;
+  if (role === 'assistant') return state.settings?.avatars?.agent || DEFAULT_AVATARS.agent;
   return '';
 }
 
@@ -819,8 +827,9 @@ function fillSettingsForm() {
   elVibrancySidebarStrength.value = Math.round((s.ui?.vibrancy?.sidebarStrength ?? 0.35) * 100);
   elNameUser.value = s.ui?.names?.user || '我';
   elNameModel.value = s.ui?.names?.model || '小助手';
-  if (s.avatars?.user) elAvatarUserPreview.src = s.avatars.user; else elAvatarUserPreview.removeAttribute('src');
-  if (s.avatars?.agent) elAvatarAgentPreview.src = s.avatars.agent; else elAvatarAgentPreview.removeAttribute('src');
+  // Preview packaged defaults when user has not set custom avatars yet
+  elAvatarUserPreview.src = (s.avatars?.user && String(s.avatars.user).trim()) ? s.avatars.user : DEFAULT_AVATARS.user;
+  elAvatarAgentPreview.src = (s.avatars?.agent && String(s.avatars.agent).trim()) ? s.avatars.agent : DEFAULT_AVATARS.agent;
 }
 
 function buildSettingsPatchFromForm() {
@@ -1407,27 +1416,27 @@ elMemDelete.addEventListener('click', memDelete);
 
 elLogsRefresh?.addEventListener('click', refreshLogs);
 elLogsClear?.addEventListener('click', async () => { await window.api.clearLogs(); await refreshLogs(); });
-elMigrateAttachments?.addEventListener('click', async () => {
-  try {
-    elMigrateAttachments.disabled = true;
-    elMigrateAttachments.textContent = '迁移中...';
-    const res = await window.api.migrateAttachments();
-    if (res?.ok) {
-      alert(`迁移完成：\n复制/移动 ${res.moved || 0} 个文件；\n更新 ${res.updated || 0} 处引用；\n错误 ${res.errors || 0}。`);
-      // Reload store to reflect updated paths
-      state.conversationsStore = await window.api.listConversations();
-      renderConversations();
-      renderMessages();
-    } else {
-      alert('迁移失败：' + (res?.error || '未知错误'));
-    }
-  } catch (e) {
-    alert('迁移异常：' + e.message);
-  } finally {
-    elMigrateAttachments.disabled = false;
-    elMigrateAttachments.textContent = '迁移历史附件';
-  }
-});
+// elMigrateAttachments?.addEventListener('click', async () => {
+//   try {
+//     elMigrateAttachments.disabled = true;
+//     elMigrateAttachments.textContent = '迁移中...';
+//     const res = await window.api.migrateAttachments();
+//     if (res?.ok) {
+//       alert(`迁移完成：\n复制/移动 ${res.moved || 0} 个文件；\n更新 ${res.updated || 0} 处引用；\n错误 ${res.errors || 0}。`);
+//       // Reload store to reflect updated paths
+//       state.conversationsStore = await window.api.listConversations();
+//       renderConversations();
+//       renderMessages();
+//     } else {
+//       alert('迁移失败：' + (res?.error || '未知错误'));
+//     }
+//   } catch (e) {
+//     alert('迁移异常：' + e.message);
+//   } finally {
+//     elMigrateAttachments.disabled = false;
+//     elMigrateAttachments.textContent = '迁移历史附件';
+//   }
+// });
 
 // CmdOrCtrl+, to open Settings quickly
 window.addEventListener('keydown', async (e) => {
@@ -1574,7 +1583,7 @@ function clearAttachments() {
   try {
     // Reset composer to default height and re-enable autosize
     state.ui.manualComposer = false;
-    if (elChat) elChat.style.setProperty('--composer-height', '140px');
+    if (elChat) elChat.style.setProperty('--composer-height', '160px');
     if (elInput) elInput.style.height = '';
     autoResizeComposer();
   } catch {}
@@ -1590,7 +1599,7 @@ function removeAttachmentAt(i) {
     if (!state.ui.attachments.length) {
       // Last one removed: reset to default height
       state.ui.manualComposer = false;
-      if (elChat) elChat.style.setProperty('--composer-height', '140px');
+      if (elChat) elChat.style.setProperty('--composer-height', '160px');
       if (elInput) elInput.style.height = '';
     }
     autoResizeComposer();
@@ -1720,7 +1729,7 @@ function autoResizeComposer() {
   const prev = elInput.style.height;
   // Current composer height from CSS variable (keep if empty input)
   const cssH = getComputedStyle(elChat).getPropertyValue('--composer-height').trim();
-  let curH = Number((cssH || '140px').replace('px', '')) || 140;
+  let curH = Number((cssH || '160px').replace('px', '')) || 160;
   // If an attachment is visible, ensure composer height is tall enough
   if (attachVisible) {
     const rect = elChat.getBoundingClientRect();
