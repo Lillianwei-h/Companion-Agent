@@ -16,7 +16,7 @@ function isGeminiBase(baseUrl) {
 }
 
 function buildSystemPrompt(persona, memory) {
-  const memItems = (memory?.items || []).slice(-5);
+  const memItems = memory?.items || [];
   const memText = memItems.length
     ? `\n\n[以下是你的记忆]\n注意：记忆是你作为第一人称记录的，记忆中的“我”代表你自己。\n${memItems.map(i => `- ${i.title}: \n${i.content}`).join('\n')}\n[结束记忆]\n\n[以下是对话内容]\n`
     : '';

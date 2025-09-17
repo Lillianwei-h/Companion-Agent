@@ -1,63 +1,59 @@
-Companion Agent (Electron)
+# Companion Agent
 
-Overview
-- Desktop app that chats with you, can proactively message on a schedule, and uses an OpenAI-compatible API.
-- Left sidebar: conversations; right: chat area. Memory library and settings included.
-- macOS notifications show when the app is not focused and the agent sends a proactive message.
+<p align="center"><img src="build/logo.png" alt="Companion Agent logo" width="200"></p>
 
-Features
-- Multiple conversations with history
-- System prompt (persona) configuration
-- Memory library: add/edit/delete; summarize conversation into memory
-- OpenAI-compatible API config: base URL, API key, model, max tokens, temperature
-- Proactive loop: every N minutes decide SKIP or SEND, with notifications when not focused
-- Avatars for you and the agent
-- Gemini multimodal (images/PDF): send local images and PDFs; summarization and proactive checks include attachments
-- Export with attachments: one-click zip including Markdown/JSON and all files
+Built with Codex. Desktop AI companion for chat, memory, and proactive notifications. Uses OpenAI‑compatible APIs and Gemini (set Base URL as needed).
 
-Getting Started
-1. Install dependencies
-   - npm install
-2. Run the app
-   - npm run dev
-3. Configure API
-   - Open Settings → enter Base URL (e.g. https://api.openai.com) and API Key; choose model.
-4. Grant notifications
-   - On first notification, macOS prompts for permission; allow to receive proactive alerts.
+---
 
-Notes
-- Data is stored locally under Electron userData/store (settings.json, conversations.json, memory.json).
-- Attachments are copied into userData/store under a structured path when you send them:
-  - store/attachments/YYYY/MM/<conversationId>/<messageId>/<filename>
-  - This keeps files organized by year/month and conversation/message.
-- Proactive messages: The app sends a special prompt to the model. The model must reply either `SKIP` or `SEND: <message>`. Non-conforming replies are treated as `SEND`.
-- Memory usage: Latest 5 memory items are included into the system prompt automatically.
-- Security: API key is saved locally in plaintext JSON for convenience. Consider system keychain integration for production.
+## Features
+- Multiple conversations with full history and avatars
+- Configurable system prompt (persona)
+- Memory library: add/edit/delete; summarize conversations into memory
+- OpenAI-compatible and Gemini support: base URL, API key, model, max new tokens, temperature
+- Proactive loop: every N minutes decide SKIP or SEND; notifications when not focused
+- Multimodal: images and PDFs; summaries and proactive checks include attachments
+- One-click export with attachments (Markdown/JSON + files)
 
-Customization
-- UI is vanilla HTML/CSS/JS; adjust styles in src/renderer/style.css.
-- Proactive logic and prompts live in src/common/openai.js.
-- Persistence is in src/common/persist.js.
+## Quick Start
+1) Install dependencies
+```bash
+npm install
+```
+2) Run the app
+```bash
+npm run dev
+```
+3) Configure the API in Settings
+- Base URL (OpenAI: https://api.openai.com, Gemini: https://generativelanguage.googleapis.com)
+- API Key, Model, Max new tokens, Temperature
+4) Allow notifications on first prompt from the OS.
 
-Packaging (macOS)
-- Prerequisites: `npm install` (installs `electron-builder`).
-- Commands:
-  - Current arch: `npm run dist`
-  - Apple Silicon: `npm run dist:arm64`
-  - Intel: `npm run dist:x64`
-- Output: `dist/` with `.dmg`, `.zip`, and the `.app` bundle.
-- App Icon: place an ICNS at `build/icon.icns` (electron-builder picks it automatically). To generate ICNS:
-  - Prepare a 1024×1024 PNG → create an `.iconset` and run `iconutil -c icns Your.iconset -o build/icon.icns`.
-- Signing & Notarization (optional, for distribution):
-  - Configure Apple Developer credentials via env vars (APPLE_ID, APPLE_APP_SPECIFIC_PASSWORD, APPLE_TEAM_ID) and ensure certificates in Keychain.
-  - Then run the same `npm run dist` commands; electron-builder will sign/notarize when configured.
+## Data & Storage
+- Runtime data lives under Electron `userData/store`:
+  - `settings.json`, `conversations.json`, `memory.json`
+- Attachments are copied into a structured path when sent:
+```
+store/attachments/YYYY/MM/<conversationId>/<messageId>/<filename>
+```
 
-Export With Attachments (Zip)
-- Open the Export menu in the chat header. Two toggles are available:
-  - Include timestamps: keep or strip message timestamps
-  - Include attachments: when enabled, exports a .zip containing:
-    - The conversation as Markdown or JSON
-    - An `attachments/` directory with all image/PDF files for that conversation
-- Markdown export embeds images inline as `![](attachments/...)` and links PDFs as `[PDF: file](attachments/...)` using relative paths inside the zip.
-- Export All produces a single zip with `所有对话.md`/`所有对话.json` and an `attachments/` tree per conversation.
-- Requires dependency `archiver`. Run `npm install` before using attachment zips.
+## Proactive Messaging
+- The app asks the model to decide:
+  - `SKIP` to do nothing
+  - `SEND: <message>` to send a message
+- Non-conforming replies are treated as `SEND`.
+
+## Keyboard Shortcuts
+- ctrl/cmd + ,  open Settings
+- ctrl/cmd + b  toggle Sidebar
+- ctrl/cmd + m  open Memory
+- esc           close Settings/Sidebar/Memory
+
+## Project Structure
+```
+electron/        # main process (main.js) and preload bridge (preload.js)
+src/common/      # shared modules (persist.js, openai.js)
+src/renderer/    # UI (index.html, renderer.js, style.css)
+build/           # app icons and logo
+dist/            # packaged builds
+```
